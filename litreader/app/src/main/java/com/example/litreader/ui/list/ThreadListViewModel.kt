@@ -30,6 +30,8 @@ class ThreadListViewModel(private val repo: BookRepository, private val sourceId
     var page = 1
     var category = ""
     var tag = ""
+    /** -1=全部 0=未读 1=已读 2=已读完（仅文学区使用） */
+    var readFilter = -1
     var reloading = false
 
     private var totalCount = 0
@@ -50,14 +52,14 @@ class ThreadListViewModel(private val repo: BookRepository, private val sourceId
                 val list = if (isImage) {
                     repo.galleryPage(sourceId, page, force)
                 } else {
-                    repo.page(sourceId, page, BookRepository.PAGE_SIZE, category, tag)
+                    repo.page(sourceId, page, BookRepository.PAGE_SIZE, category, tag, readFilter)
                 }
                 _threads.value = list
                 if (isImage) {
                     siteTotalPages = repo.sitePageCount(sourceId)
                     _tags.value = emptyList()
                 } else {
-                    totalCount = repo.categoryCount(sourceId, category, tag)
+                    totalCount = repo.categoryCount(sourceId, category, tag, readFilter)
                     _tags.value = repo.tagCounts(sourceId)
                 }
                 _error.value = if (list.isEmpty() && page == 1 && !reloading && !force) "暂无数据" else null
@@ -72,6 +74,11 @@ class ThreadListViewModel(private val repo: BookRepository, private val sourceId
 
     fun selectTag(t: String) {
         tag = t
+        load(1)
+    }
+
+    fun selectReadFilter(f: Int) {
+        readFilter = f
         load(1)
     }
 

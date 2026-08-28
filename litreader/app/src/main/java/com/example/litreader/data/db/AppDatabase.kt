@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [ThreadEntity::class, ThreadContentEntity::class], version = 4)
+@Database(entities = [ThreadEntity::class, ThreadContentEntity::class], version = 5)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun threadDao(): ThreadDao
     abstract fun threadContentDao(): ThreadContentDao
@@ -17,6 +17,7 @@ abstract class AppDatabase : RoomDatabase() {
          * v2→v3：threads 增加 replies 列；sourceId 由旧的单一 "t66y" 归入文学区
          * "t66y_lit"（贴图区为 "t66y_img"）。收藏与缓存全部保留。
          * v3→v4：增加 sitePage 列（贴图区页码与站点对齐、按需抓取）。
+         * v4→v5：增加 readState 列（0=未读 1=已读 2=已读完）。
          */
         private val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -31,8 +32,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE threads ADD COLUMN readState INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun build(ctx: Context) = Room.databaseBuilder(ctx, AppDatabase::class.java, "lit.db")
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .fallbackToDestructiveMigration()
             .build()
     }

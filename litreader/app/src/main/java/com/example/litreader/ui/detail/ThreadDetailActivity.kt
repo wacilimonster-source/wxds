@@ -161,6 +161,8 @@ class ThreadDetailActivity : AppCompatActivity() {
                 fromCache = cached
                 floorPage = 1
                 renderPosts()
+                // 文学帖打开即记为已读（不影响已读完标记）
+                if (SourceRegistry.get(sourceId)?.style == SourceStyle.TEXT) repo.markRead(tid)
             } catch (e: Exception) {
                 bind.web.loadDataWithBaseURL(
                     BASE_URL, readerHtml("<p>加载失败：${e.message ?: "网络错误"}</p><p>已缓存的章节在联网后仍可离线重读。</p>"),

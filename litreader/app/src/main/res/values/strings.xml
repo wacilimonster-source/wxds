@@ -43,6 +43,13 @@
     <string name="sync_progress">同步目录 %1$d/%2$d 页 · 新增 %3$d 条</string>
     <string name="sync_failed">目录同步失败：%1$s</string>
 
+    <string name="filter_unread">未读</string>
+    <string name="filter_read">已读</string>
+    <string name="filter_finished">已读完</string>
+
+    <string name="reader_finish_mark">读完</string>
+    <string name="reader_finished">已读完</string>
+
     <string name="jump_page">跳转到页（共 %1$d 页）</string>
     <string name="jump_go">跳转</string>
     <string name="cancel">取消</string>

@@ -77,8 +77,10 @@ class ThreadListFragment : Fragment() {
                 )
             )[CatalogSyncViewModel::class.java]
             syncVm?.state?.observe(viewLifecycleOwner, ::renderSync)
+            renderReadChips()
         } else {
             bind.tvSyncStatus.visibility = View.GONE
+            bind.readBar.visibility = View.GONE
         }
 
         bind.swipe.setColorSchemeColors(ContextCompat.getColor(requireContext(), R.color.accent))
@@ -118,6 +120,18 @@ class ThreadListFragment : Fragment() {
         }
 
         vm.load(1)
+    }
+
+    private var firstResume = true
+
+    override fun onResume() {
+        super.onResume()
+        // 从阅读器/详情返回时刷新已读标记（本地读取，开销极小）；首次进入不重复加载
+        if (firstResume) {
+            firstResume = false
+            return
+        }
+        if (this::vm.isInitialized) vm.load(vm.page)
     }
 
     /** 手动刷新：文学区走目录增量同步（完成回调里会重载列表），贴图区沿用在线补页。 */
@@ -162,13 +176,33 @@ class ThreadListFragment : Fragment() {
         bind.tagBar.visibility = if (counts.isEmpty()) View.GONE else View.VISIBLE
         val row = bind.tagRow
         row.removeAllViews()
-        addChip(getString(R.string.filter_all), vm.tag.isEmpty()) { if (vm.tag.isNotEmpty()) vm.selectTag("") }
+        addChip(row, getString(R.string.filter_all), vm.tag.isEmpty()) { if (vm.tag.isNotEmpty()) vm.selectTag("") }
         counts.forEach { tc ->
-            addChip("${tc.tag} ${tc.n}", vm.tag == tc.tag) { if (vm.tag != tc.tag) vm.selectTag(tc.tag) }
+            addChip(row, "${tc.tag} ${tc.n}", vm.tag == tc.tag) { if (vm.tag != tc.tag) vm.selectTag(tc.tag) }
         }
     }
 
-    private fun addChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    /** 已读状态筛选：全部 / 未读 / 已读 / 已读完（文学区）。 */
+    private fun renderReadChips() {
+        val options = listOf(
+            -1 to getString(R.string.filter_all),
+            0 to getString(R.string.filter_unread),
+            1 to getString(R.string.filter_read),
+            2 to getString(R.string.filter_finished)
+        )
+        options.forEach { (value, label) ->
+            addChip(bind.readRow, label, vm.readFilter == value) {
+                if (vm.readFilter != value) vm.selectReadFilter(value)
+            }
+        }
+    }
+
+    private fun addChip(
+        row: LinearLayout,
+        label: String,
+        selected: Boolean,
+        onClick: () -> Unit
+    ) {
         val tv = TextView(requireContext()).apply {
             text = label
             textSize = 11f
@@ -185,7 +219,7 @@ class ThreadListFragment : Fragment() {
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { marginEnd = dp(6) }
         }
-        bind.tagRow.addView(tv)
+        row.addView(tv)
     }
 
     /** 跳页：点「X / Y」直接输入目标页。 */

@@ -51,6 +51,23 @@
             app:tint="@color/inkSecondary" />
     </LinearLayout>
 
+    <!-- 已读状态筛选条（仅文学区使用） -->
+    <HorizontalScrollView
+        android:id="@+id/readBar"
+        android:scrollbars="none"
+        android:visibility="gone"
+        android:paddingStart="20dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="4dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <LinearLayout
+            android:id="@+id/readRow"
+            android:orientation="horizontal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </HorizontalScrollView>
+
     <!-- 标签筛选条（按目录聚合动态生成） -->
     <HorizontalScrollView
         android:id="@+id/tagBar"

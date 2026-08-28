@@ -10,8 +10,8 @@ interface ThreadDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(list: List<ThreadEntity>)
 
-    @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND category = :category AND (:tag = '' OR tag = :tag) ORDER BY timestamp DESC LIMIT :limit OFFSET :offset")
-    suspend fun page(sourceId: String, category: String, tag: String, limit: Int, offset: Int): List<ThreadEntity>
+    @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND category = :category AND (:tag = '' OR tag = :tag) AND (:readFilter = -1 OR readState = :readFilter) ORDER BY timestamp DESC LIMIT :limit OFFSET :offset")
+    suspend fun page(sourceId: String, category: String, tag: String, readFilter: Int, limit: Int, offset: Int): List<ThreadEntity>
 
     @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND category = :category")
     suspend fun byCategory(sourceId: String, category: String): List<ThreadEntity>
@@ -37,11 +37,23 @@ interface ThreadDao {
     @Query("SELECT tid FROM threads WHERE favorite = 1 AND tid IN (:tids)")
     suspend fun favoriteTids(tids: List<String>): List<String>
 
+    @Query("SELECT tid, favorite, readState FROM threads WHERE tid IN (:tids)")
+    suspend fun existingMeta(tids: List<String>): List<TidMeta>
+
     @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND sitePage = :sitePage ORDER BY timestamp DESC")
     suspend fun bySitePage(sourceId: String, sitePage: Int): List<ThreadEntity>
 
     @Query("DELETE FROM threads WHERE sourceId = :sourceId AND sitePage = :sitePage AND favorite = 0")
     suspend fun deleteBySitePage(sourceId: String, sitePage: Int)
+
+    @Query("DELETE FROM threads WHERE sourceId = :sourceId AND sitePage = :sitePage AND favorite = 0 AND tid NOT IN (:tids)")
+    suspend fun deleteStaleBySitePage(sourceId: String, sitePage: Int, tids: List<String>)
+
+    @Query("UPDATE threads SET readState = 1 WHERE tid = :tid AND readState = 0")
+    suspend fun markRead(tid: String)
+
+    @Query("UPDATE threads SET readState = 2 WHERE tid = :tid")
+    suspend fun markFinished(tid: String)
 
     @Query("SELECT * FROM threads")
     suspend fun all(): List<ThreadEntity>
@@ -55,8 +67,8 @@ interface ThreadDao {
     @Query("SELECT favorite FROM threads WHERE tid = :tid")
     suspend fun isFavorite(tid: String): Boolean?
 
-    @Query("SELECT COUNT(*) FROM threads WHERE sourceId = :sourceId AND category = :category AND (:tag = '' OR tag = :tag)")
-    suspend fun countByCategory(sourceId: String, category: String, tag: String): Int
+    @Query("SELECT COUNT(*) FROM threads WHERE sourceId = :sourceId AND category = :category AND (:tag = '' OR tag = :tag) AND (:readFilter = -1 OR readState = :readFilter)")
+    suspend fun countByCategory(sourceId: String, category: String, tag: String, readFilter: Int): Int
 
     @Query("SELECT COUNT(*) FROM threads WHERE sourceId = :sourceId")
     suspend fun totalCount(sourceId: String): Int
@@ -64,6 +76,9 @@ interface ThreadDao {
 
 /** 标签聚合结果（Room POJO）。 */
 data class TagCount(val tag: String, val n: Int)
+
+/** 帖子标记回读（upsert 前保留收藏/已读状态，Room POJO）。 */
+data class TidMeta(val tid: String, val favorite: Boolean, val readState: Int)
 
 @Dao
 interface ThreadContentDao {

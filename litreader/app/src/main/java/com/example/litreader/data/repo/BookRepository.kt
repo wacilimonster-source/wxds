@@ -33,12 +33,17 @@ class BookRepository(
         replies = it.replies
     )
 
-    /** 目录页落库：盖 sitePage 章 + 保护已有收藏标记（否则 REPLACE 会重置收藏）。 */
+    /** 目录页落库：盖 sitePage 章 + 保护已有收藏/已读标记（否则 REPLACE 会重置）。 */
     private suspend fun upsertItems(sourceId: String, page: Int, items: List<ThreadItem>): List<ThreadEntity> {
         if (items.isEmpty()) return emptyList()
-        val favSet = db.threadDao().favoriteTids(items.map { it.tid }).toSet()
+        val meta = db.threadDao().existingMeta(items.map { it.tid }).associateBy { it.tid }
         val ents = items.map {
-            toEntity(sourceId, it).copy(sitePage = page, favorite = it.tid in favSet)
+            val m = meta[it.tid]
+            toEntity(sourceId, it).copy(
+                sitePage = page,
+                favorite = m?.favorite ?: false,
+                readState = m?.readState ?: 0
+            )
         }
         db.threadDao().upsertAll(ents)
         return ents
@@ -59,23 +64,29 @@ class BookRepository(
         return upsertItems(src.id, page, cp.items)
     }
 
-    /** 文学区本地分页（30 条/页，目录由 syncCatalog 全量落库）。tag 为空串表示不过滤。 */
+    /** 文学区本地分页（30 条/页，目录由 syncCatalog 全量落库）。
+     *  tag 空串=不过滤；readFilter -1=全部 0=未读 1=已读 2=已读完。 */
     suspend fun page(
         sourceId: String,
         page: Int,
         pageSize: Int,
         category: String,
-        tag: String = ""
+        tag: String = "",
+        readFilter: Int = -1
     ): List<ThreadEntity> =
-        db.threadDao().page(sourceId, category, tag, pageSize, (page - 1) * pageSize)
+        db.threadDao().page(sourceId, category, tag, readFilter, pageSize, (page - 1) * pageSize)
 
     /**
      * 贴图区分页：页码与站点对齐（100 条/页）。
      * 本地没有该页 → 实时抓取落库；看过的页秒开、离线可回看。
-     * forceRefresh 时先删该页非收藏行再重抓（刷新语义）。
+     * forceRefresh 时重抓该页（upsert 自动保留收藏/已读），并清理已从站点消失的非收藏残留。
      */
     suspend fun galleryPage(sourceId: String, page: Int, forceRefresh: Boolean = false): List<ThreadEntity> {
-        if (forceRefresh) db.threadDao().deleteBySitePage(sourceId, page)
+        if (forceRefresh) {
+            val fresh = loadList(sourceId, page, "")
+            db.threadDao().deleteStaleBySitePage(sourceId, page, fresh.map { it.tid })
+            return db.threadDao().bySitePage(sourceId, page)
+        }
         val cached = db.threadDao().bySitePage(sourceId, page)
         if (cached.isNotEmpty()) return cached
         return loadList(sourceId, page, "")
@@ -136,9 +147,19 @@ class BookRepository(
         if (filter == null) db.threadDao().favoritesAll()
         else db.threadDao().favorites(filter)
 
-    suspend fun categoryCount(sourceId: String, category: String, tag: String = ""): Int =
-        if (category.isEmpty() && tag.isEmpty()) db.threadDao().totalCount(sourceId)
-        else db.threadDao().countByCategory(sourceId, category, tag)
+    suspend fun categoryCount(sourceId: String, category: String, tag: String = "", readFilter: Int = -1): Int =
+        if (category.isEmpty() && tag.isEmpty() && readFilter == -1) db.threadDao().totalCount(sourceId)
+        else db.threadDao().countByCategory(sourceId, category, tag, readFilter)
+
+    /** 打开过即记为已读（不改已读完标记）。 */
+    suspend fun markRead(tid: String) = db.threadDao().markRead(tid)
+
+    /** 已读完 / 取消已读完（取消后回到已读）。 */
+    suspend fun setFinished(tid: String, finished: Boolean) {
+        if (finished) db.threadDao().markFinished(tid) else db.threadDao().markRead(tid)
+    }
+
+    suspend fun readState(tid: String): Int = db.threadDao().byId(tid)?.readState ?: 0
 
     /** 跨区本地搜索（搜的是已缓存进库的标题）。 */
     suspend fun search(q: String): List<ThreadEntity> =

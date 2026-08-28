@@ -31,7 +31,7 @@
                 android:paddingStart="22dp"
                 android:paddingEnd="22dp"
                 android:paddingTop="26dp"
-                android:paddingBottom="26dp"
+                android:paddingBottom="44dp"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
         </ScrollView>
@@ -197,6 +197,9 @@
                 style="@style/ReaderMenuItem" />
             <TextView
                 android:id="@+id/btnMarks"
+                style="@style/ReaderMenuItem" />
+            <TextView
+                android:id="@+id/btnFinished"
                 style="@style/ReaderMenuItem" />
             <TextView
                 android:id="@+id/btnFloorJump"

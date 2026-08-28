@@ -64,6 +64,7 @@ class ReaderActivity : AppCompatActivity() {
     private var loaded = false
     private var restoredOnce = false
     private var menuShown = true
+    private var finished = false
 
     private val themes = ReaderThemeSet.values()
     private val lineSpacings = floatArrayOf(1.6f, 1.9f, 2.2f)
@@ -118,6 +119,10 @@ class ReaderActivity : AppCompatActivity() {
                     favorite = repo.isFavorite(tid)
                     renderFav()
                     buildContent(posts)
+                    // 打开即记为已读（不影响已读完标记）
+                    repo.markRead(tid)
+                    finished = repo.readState(tid) >= 2
+                    renderFinishedLabel()
                 }
             } catch (e: Exception) {
                 showError(e.message ?: "网络错误")
@@ -141,7 +146,7 @@ class ReaderActivity : AppCompatActivity() {
     // ---------- 排版与分页 ----------
 
     private fun contentWidth(): Int = max(100, bind.content.width - dp(44))
-    private fun contentHeight(): Int = max(100, bind.content.height - dp(52))
+    private fun contentHeight(): Int = max(100, bind.content.height - dp(70))
 
     private fun makeLayout(text: CharSequence, width: Int): StaticLayout =
         StaticLayout.Builder.obtain(text, 0, text.length, textPaint(), width)
@@ -331,10 +336,16 @@ class ReaderActivity : AppCompatActivity() {
         }
         bind.btnFloorJump.setOnClickListener { showFloorJump() }
         bind.btnForum.setOnClickListener { goForum() }
+        bind.btnFinished.setOnClickListener {
+            finished = !finished
+            lifecycleScope.launch { repo.setFinished(tid, finished) }
+            renderFinishedLabel()
+        }
 
         renderFav()
         renderFlipLabel()
         renderMarksLabel()
+        renderFinishedLabel()
         bind.btnLine.text = getString(R.string.reader_line, trim(lineSpacing))
         bind.btnTheme.text = getString(R.string.reader_theme, theme.label)
         bind.tvFont.text = "${fontSp()}"
@@ -408,9 +419,9 @@ class ReaderActivity : AppCompatActivity() {
         if (hide) {
             controller.systemBarsBehavior =
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            controller.hide(WindowInsetsCompat.Type.statusBars())
+            controller.hide(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
         } else {
-            controller.show(WindowInsetsCompat.Type.statusBars())
+            controller.show(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
         }
     }
 
@@ -435,6 +446,12 @@ class ReaderActivity : AppCompatActivity() {
     private fun renderMarksLabel() {
         bind.btnMarks.text = getString(
             R.string.reader_marks, getString(if (floorMarks) R.string.on else R.string.off)
+        )
+    }
+
+    private fun renderFinishedLabel() {
+        bind.btnFinished.text = getString(
+            if (finished) R.string.reader_finished else R.string.reader_finish_mark
         )
     }
 
@@ -503,7 +520,7 @@ class ReaderActivity : AppCompatActivity() {
                 layoutParams = RecyclerView.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
                 )
-                setPadding(dpPx(22), dpPx(26), dpPx(22), dpPx(26))
+                setPadding(dpPx(22), dpPx(26), dpPx(22), dpPx(44))
                 callbacks = this@PagesAdapter.callbacks
             }
             return PVH(view)
