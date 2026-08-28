@@ -18,4 +18,6 @@
     <color name="gallerySubtle">#A3988A</color>
     <!-- 阅读器菜单底 -->
     <color name="readerMenuBg">#E6141414</color>
+    <!-- 图标底（墨色，图标不随日夜切换） -->
+    <color name="ic_launcher_bg">#241E17</color>
 </resources>

@@ -12,7 +12,9 @@
         android:name=".App"
         android:allowBackup="true"
         android:usesCleartextTraffic="true"
-        android:label="纸墨"
+        android:label="食色也"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.LitReader">
         <provider
             android:name="androidx.core.content.FileProvider"
