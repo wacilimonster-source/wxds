@@ -23,11 +23,13 @@ import java.util.concurrent.TimeUnit
 object UpdateManager {
     private const val REPO = "wacilimonster-source/wxds"
 
+    // 版本检查 raw 优先（缓存仅 5 分钟、永远新鲜），jsDelivr 各节点作被墙回退
+    // （jsDelivr 对 @master 分支引用缓存可达数小时，purge 后仍可能短暂返回旧版）
     private val VERSION_URLS = listOf(
+        "https://raw.githubusercontent.com/$REPO/master/latest.json",
         "https://cdn.jsdelivr.net/gh/$REPO@master/latest.json",
         "https://fastly.jsdelivr.net/gh/$REPO@master/latest.json",
-        "https://gcore.jsdelivr.net/gh/$REPO@master/latest.json",
-        "https://raw.githubusercontent.com/$REPO/master/latest.json"
+        "https://gcore.jsdelivr.net/gh/$REPO@master/latest.json"
     )
     private val APK_BASES = listOf(
         "https://cdn.jsdelivr.net/gh/$REPO@master/",
