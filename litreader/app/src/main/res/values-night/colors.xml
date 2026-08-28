@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 纸墨书房 · 暗色（暖墨底，非纯黑） -->
+    <color name="accent">#D08066</color>
+    <color name="onPrimary">#3B241A</color>
+    <color name="accentDeep">#F0C9B8</color>
+    <color name="accentSoft">#3A2C25</color>
+    <color name="bgPaper">#15120E</color>
+    <color name="bgSurface">#1F1B15</color>
+    <color name="inkPrimary">#EDE5D8</color>
+    <color name="inkSecondary">#A3988A</color>
+    <color name="divider">#2E2820</color>
+    <color name="catTextSelected">#3B241A</color>
+    <color name="catTextNormal">#D08066</color>
+</resources>

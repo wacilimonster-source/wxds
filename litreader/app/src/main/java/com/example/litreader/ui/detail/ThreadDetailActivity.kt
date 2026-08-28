@@ -5,8 +5,10 @@ import android.os.Bundle
 import android.view.View
 import android.webkit.WebView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.litreader.App
+import com.example.litreader.R
 import com.example.litreader.data.repo.BookRepository
 import com.example.litreader.data.model.Post
 import com.example.litreader.databinding.ActivityDetailBinding
@@ -31,25 +33,25 @@ class ThreadDetailActivity : AppCompatActivity() {
         private const val PREF_FONT = "reader_font"
     }
 
-    @SuppressLint("SetJavaScriptEnabled")
-    override fun onCreate(s: Bundle?) {
-        super.onCreate(s)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
         bind = ActivityDetailBinding.inflate(layoutInflater)
         setContentView(bind.root)
         repo = BookRepository((application as App).database)
 
         tid = intent.getStringExtra("tid") ?: return finish()
-        title = intent.getStringExtra("title")
+        val chapterTitle = intent.getStringExtra("title") ?: ""
+        bind.tvChapter.text = chapterTitle
         favorite = intent.getBooleanExtra("favorite", false)
         fontSize = getSharedPreferences("reader", MODE_PRIVATE).getInt(PREF_FONT, 17)
         renderFav()
-
-        setupWeb()
         renderFloorBar()
 
+        setupWeb()
+
+        bind.btnBack.setOnClickListener { finish() }
         bind.btnOp.setOnClickListener {
             onlyOp = !onlyOp
-            bind.btnOp.text = if (onlyOp) "看全部" else "只看楼主"
             load()
         }
         bind.btnFav.setOnClickListener {
@@ -72,9 +74,12 @@ class ThreadDetailActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWeb() {
         bind.web.settings.javaScriptEnabled = false
-        bind.web.settings.builtInZoomControls = false
         bind.web.settings.loadWithOverviewMode = true
         WebView.setWebContentsDebuggingEnabled(false)
+        // 跟随应用日/夜主题，正文底色与界面一致
+        val dark = (resources.configuration.uiMode and
+            android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        if (dark) bind.web.setBackgroundColor(ContextCompat.getColor(this, R.color.bgPaper))
     }
 
     private fun totalPages(): Int = max(1, ceil(posts.size / FLOORS_PER_PAGE.toDouble()).toInt())
@@ -90,8 +95,7 @@ class ThreadDetailActivity : AppCompatActivity() {
                 renderPosts()
             } catch (e: Exception) {
                 bind.web.loadDataWithBaseURL(
-                    BASE_URL,
-                    "<html><body style='font-size:16px;padding:24px'>加载失败：${e.message ?: "网络错误"}<br/><br/>已缓存的正文会在此展示（当前分类无缓存）。</body></html>",
+                    BASE_URL, readerHtml("<p>加载失败：${e.message ?: "网络错误"}</p><p>已缓存的章节在联网后仍可离线重读。</p>"),
                     "text/html", "utf-8", null
                 )
             } finally {
@@ -100,63 +104,82 @@ class ThreadDetailActivity : AppCompatActivity() {
         }
     }
 
+    private fun readerHtml(body: String): String {
+        val dark = (resources.configuration.uiMode and
+            android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        val bg = if (dark) "#15120E" else "#FAF6EF"
+        val fg = if (dark) "#EDE5D8" else "#241E17"
+        val subtle = if (dark) "#A3988A" else "#8A7F70"
+        val line = if (dark) "#2E2820" else "#EAE2D6"
+        val badge = if (fromCache)
+            "<div class='badge'>离线缓存</div>" else ""
+        return StringBuilder().apply {
+            append("<html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width, initial-scale=1'/>")
+            append("<style>")
+            append("body{background:$bg;color:$fg;font-size:${fontSize}px;line-height:1.9;padding:18px 16px 28px;word-break:break-word;font-family:serif}")
+            append("img{max-width:100%;height:auto;border-radius:8px}")
+            append(".post{padding:14px 0;border-bottom:1px solid $line}")
+            append(".meta{color:$subtle;font-size:${fontSize - 5}px;margin-bottom:8px}")
+            append(".badge{display:inline-block;background:$line;color:$subtle;font-size:${fontSize - 6}px;padding:3px 10px;border-radius:99px;margin-bottom:4px}")
+            append("a{color:inherit}")
+            append("</style></head><body>")
+            append(badge)
+            append(body)
+            append("</body></html>")
+        }.toString()
+    }
+
     private fun renderPosts() {
         if (posts.isEmpty()) {
-            bind.web.loadDataWithBaseURL(BASE_URL, "<html><body style='padding:24px;font-size:16px'>暂无内容（可能需要登录或帖子已被删除）</body></html>", "text/html", "utf-8", null)
+            bind.web.loadDataWithBaseURL(BASE_URL, readerHtml("<p>暂无内容，可能需要登录或帖子已被删除。</p>"), "text/html", "utf-8", null)
             renderFloorBar()
             return
         }
         val from = (floorPage - 1) * FLOORS_PER_PAGE
         val to = minOf(posts.size, from + FLOORS_PER_PAGE)
-        val slice = posts.subList(from, to)
-        val cacheBadge = if (fromCache) "<div style='text-align:center;color:#999;font-size:12px'>📄 离线缓存</div>" else ""
-        val html = StringBuilder().apply {
-            append("<html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width, initial-scale=1'/>")
-            append("<style>body{font-size:${fontSize}px;line-height:1.8;padding:12px;word-break:break-word}img{max-width:100%;height:auto}")
-            append(".post{border-bottom:1px solid #ddd;padding-bottom:12px;margin-bottom:12px}")
-            append(".meta{color:#888;font-size:${fontSize - 4}px;margin-bottom:6px}")
-            append("hr{border:none;border-top:1px solid #eee}</style></head><body>")
-            append(cacheBadge)
-            slice.forEach { p ->
-                append("<div class='post'>")
-                val meta = buildString {
-                    append("<span class='meta'>")
-                    if (p.author.isNotEmpty()) append("${p.author} ")
-                    if (p.dateText.isNotEmpty()) append("· ${p.dateText} ")
-                    append("· #${p.floor}樓")
-                    append("</span>")
-                }
-                append(meta)
-                append(p.contentHtml)
-                append("</div>")
-            }
-            append("</body></html>")
-        }.toString()
-        bind.web.loadDataWithBaseURL(BASE_URL, html, "text/html", "utf-8", null)
+        val body = StringBuilder()
+        posts.subList(from, to).forEach { p ->
+            body.append("<div class='post'>")
+            body.append("<div class='meta'>")
+            if (p.author.isNotEmpty()) body.append("${p.author} · ")
+            if (p.dateText.isNotEmpty()) body.append("${p.dateText} · ")
+            body.append("#${p.floor}樓")
+            body.append("</div>")
+            body.append(p.contentHtml)
+            body.append("</div>")
+        }
+        bind.web.loadDataWithBaseURL(BASE_URL, readerHtml(body.toString()), "text/html", "utf-8", null)
         renderFloorBar()
     }
 
     private fun renderFloorBar() {
         val total = totalPages()
-        bind.tvFloorPage.text = if (posts.isEmpty()) "—" else "第 $floorPage/$total 页 · 共 ${posts.size} 楼"
+        if (posts.isEmpty()) {
+            bind.tvFloorPage.text = if (onlyOp) "只看楼主 · 未加载" else "全部楼层 · 未加载"
+            bind.tvFloorPos.text = "—"
+        } else {
+            bind.tvFloorPage.text = if (onlyOp) "只看楼主 · 共 ${posts.size} 楼" else "全部楼层 · 共 ${posts.size} 楼"
+            bind.tvFloorPos.text = "第 $floorPage / $total 页"
+        }
+        bind.tvFloorPos.visibility = if (posts.isEmpty()) View.GONE else View.VISIBLE
         bind.btnPrevFloor.isEnabled = floorPage > 1
         bind.btnNextFloor.isEnabled = floorPage < total
-        if (onlyOp) {
-            bind.btnOp.text = "看全部"
-        } else {
-            bind.btnOp.text = "只看楼主"
-        }
+        bind.btnOp.text = if (onlyOp) getString(R.string.see_all) else getString(R.string.only_op)
+        val alpha = if (bind.btnPrevFloor.isEnabled) 1f else 0.35f
+        bind.btnPrevFloor.alpha = alpha
+        bind.btnNextFloor.alpha = if (bind.btnNextFloor.isEnabled) 1f else 0.35f
     }
 
     private fun renderFav() {
         bind.btnFav.setImageResource(
-            if (favorite) android.R.drawable.btn_star_big_on else android.R.drawable.btn_star_big_off
+            if (favorite) R.drawable.ic_star_fill else R.drawable.ic_star_outline
         )
     }
 
     private fun setFont(size: Int) {
         fontSize = size.coerceIn(12, 30)
+        bind.tvFont.text = "$fontSize"
         getSharedPreferences("reader", MODE_PRIVATE).edit().putInt(PREF_FONT, fontSize).apply()
-        renderPosts()
+        if (posts.isNotEmpty()) renderPosts()
     }
 }

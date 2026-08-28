@@ -1,13 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="?android:attr/selectableItemBackground">
+    android:layout_marginStart="16dp"
+    android:layout_marginEnd="16dp"
+    android:layout_marginTop="6dp"
+    android:layout_marginBottom="2dp"
+    app:cardBackgroundColor="@color/bgSurface"
+    app:cardCornerRadius="14dp"
+    app:cardElevation="0dp"
+    app:strokeWidth="1dp"
+    app:strokeColor="@color/divider">
 
     <LinearLayout
         android:orientation="horizontal"
-        android:padding="12dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
         android:gravity="center_vertical"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
@@ -20,40 +31,59 @@
             <TextView
                 android:id="@+id/tvTitle"
                 android:textSize="16sp"
-                android:textColor="?android:attr/textColorPrimary"
+                android:textColor="@color/inkPrimary"
                 android:maxLines="2"
                 android:ellipsize="end"
+                android:lineSpacingExtra="2dp"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
-            <TextView
-                android:id="@+id/tvMeta"
-                android:textSize="12sp"
-                android:textColor="#888888"
-                android:layout_marginTop="4dp"
+            <LinearLayout
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="6dp"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
+                android:layout_height="wrap_content">
+                <TextView
+                    android:id="@+id/tvTag"
+                    android:textSize="11sp"
+                    android:textColor="@color/catTextNormal"
+                    android:background="@drawable/bg_tag"
+                    android:paddingStart="7dp"
+                    android:paddingEnd="7dp"
+                    android:paddingTop="2dp"
+                    android:paddingBottom="2dp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+                <TextView
+                    android:id="@+id/tvMeta"
+                    android:textSize="12sp"
+                    android:textColor="@color/inkSecondary"
+                    android:layout_marginStart="8dp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/tvLikes"
-            android:textSize="12sp"
-            android:textColor="#E53935"
-            android:layout_marginStart="8dp"
+        <LinearLayout
+            android:orientation="vertical"
+            android:gravity="end|center_vertical"
+            android:layout_marginStart="10dp"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
-
-        <TextView
-            android:id="@+id/tvFav"
-            android:textSize="14sp"
-            android:textColor="#FFB300"
-            android:layout_marginStart="8dp"
-            android:text="★"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content">
+            <ImageView
+                android:id="@+id/imgFav"
+                android:src="@drawable/ic_star_fill"
+                android:importantForAccessibility="no"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                app:tint="@color/accent" />
+            <TextView
+                android:id="@+id/tvLikes"
+                android:textSize="11sp"
+                android:textColor="@color/inkSecondary"
+                android:layout_marginTop="6dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
     </LinearLayout>
-
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1px"
-        android:background="#22000000" />
-</LinearLayout>
+</com.google.android.material.card.MaterialCardView>

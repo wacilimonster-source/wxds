@@ -1,80 +1,158 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
+    android:background="@color/bgPaper"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- 顶栏：返回 + 标题 + 收藏 -->
     <LinearLayout
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingStart="8dp"
-        android:paddingEnd="8dp"
-        android:paddingTop="4dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="6dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
-        <Button
-            android:id="@+id/btnOp"
-            android:text="看全部"
-            android:layout_width="wrap_content"
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:contentDescription="@string/back"
+            android:src="@drawable/ic_back"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/inkPrimary" />
+        <TextView
+            android:id="@+id/tvChapter"
+            android:textSize="17sp"
+            android:textColor="@color/inkPrimary"
+            android:fontFamily="serif"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:layout_marginStart="4dp"
+            android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="wrap_content" />
         <ImageButton
             android:id="@+id/btnFav"
-            android:contentDescription="收藏"
+            android:contentDescription="@string/favorite_add"
+            android:src="@drawable/ic_star_outline"
             android:layout_width="44dp"
             android:layout_height="44dp"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/accent" />
+    </LinearLayout>
+
+    <!-- 工具行：只看楼主 + 字号 -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="12dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnOp"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:text="@string/see_all"
+            android:textSize="12sp"
+            android:minWidth="0dp"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp" />
         <View
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="1dp" />
-        <Button
+        <ImageButton
             android:id="@+id/btnFontDown"
-            android:text="A-"
+            android:contentDescription="@string/font_down"
+            android:src="@drawable/ic_font_down"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/inkSecondary" />
+        <TextView
+            android:id="@+id/tvFont"
+            android:text="17"
+            android:textSize="12sp"
+            android:textColor="@color/inkSecondary"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content" />
-        <Button
+        <ImageButton
             android:id="@+id/btnFontUp"
-            android:text="A+"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
+            android:contentDescription="@string/font_up"
+            android:src="@drawable/ic_font_up"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/inkSecondary" />
     </LinearLayout>
 
+    <!-- 楼层指示 -->
+    <TextView
+        android:id="@+id/tvFloorPage"
+        android:textSize="12sp"
+        android:textColor="@color/inkSecondary"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="4dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <WebView
+            android:id="@+id/web"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <ProgressBar
+            android:id="@+id/progress"
+            android:layout_gravity="center"
+            android:visibility="gone"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </FrameLayout>
+
+    <!-- 底部翻页 -->
     <LinearLayout
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="10dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
-        <Button
+        <ImageButton
             android:id="@+id/btnPrevFloor"
-            android:text="上一页"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
+            android:contentDescription="@string/floor_prev"
+            android:src="@drawable/ic_chevron_left"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/accent" />
         <TextView
-            android:id="@+id/tvFloorPage"
+            android:id="@+id/tvFloorPos"
             android:gravity="center"
-            android:textSize="13sp"
+            android:textColor="@color/inkSecondary"
+            android:textSize="12sp"
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content" />
-        <Button
+        <ImageButton
             android:id="@+id/btnNextFloor"
-            android:text="下一页"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
+            android:contentDescription="@string/floor_next"
+            android:src="@drawable/ic_chevron_right"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/accent" />
     </LinearLayout>
-
-    <ProgressBar
-        android:id="@+id/progress"
-        style="@android:style/Widget.ProgressBar.Horizontal"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:max="100"
-        android:visibility="gone" />
-
-    <WebView
-        android:id="@+id/web"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
 </LinearLayout>

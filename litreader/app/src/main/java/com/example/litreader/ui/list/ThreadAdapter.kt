@@ -1,6 +1,7 @@
 package com.example.litreader.ui.list
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
@@ -42,13 +43,25 @@ class ThreadAdapter(
     override fun onBindViewHolder(h: VH, i: Int) {
         val t = data[i]
         h.b.tvTitle.text = t.title
-        val parts = mutableListOf<String>()
-        if (t.tag.isNotEmpty()) parts += t.tag
-        parts += t.author
-        if (t.dateText.isNotEmpty()) parts += t.dateText
-        h.b.tvMeta.text = parts.joinToString(" · ")
-        h.b.tvLikes.visibility = if (t.likes.isEmpty()) android.view.View.GONE else android.view.View.VISIBLE
-        h.b.tvLikes.text = t.likes
-        h.b.tvFav.visibility = if (t.favorite) android.view.View.VISIBLE else android.view.View.GONE
+
+        if (t.tag.isEmpty()) {
+            h.b.tvTag.visibility = View.GONE
+        } else {
+            h.b.tvTag.visibility = View.VISIBLE
+            h.b.tvTag.text = t.tag
+        }
+
+        val meta = mutableListOf(t.author)
+        if (t.dateText.isNotEmpty()) meta += t.dateText
+        h.b.tvMeta.text = meta.joinToString(" · ")
+
+        h.b.imgFav.visibility = if (t.favorite) View.VISIBLE else View.GONE
+
+        if (t.likes.isEmpty()) {
+            h.b.tvLikes.visibility = View.GONE
+        } else {
+            h.b.tvLikes.visibility = View.VISIBLE
+            h.b.tvLikes.text = t.likes
+        }
     }
 }

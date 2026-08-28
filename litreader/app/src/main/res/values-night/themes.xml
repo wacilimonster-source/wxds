@@ -9,7 +9,7 @@
         <item name="colorOnSurface">@color/inkPrimary</item>
         <item name="colorOnSurfaceVariant">@color/inkSecondary</item>
         <item name="android:statusBarColor">@color/bgPaper</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowBackground">@color/bgPaper</item>
     </style>
 </resources>

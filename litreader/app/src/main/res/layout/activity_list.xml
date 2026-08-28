@@ -1,108 +1,199 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
+    android:background="@color/bgPaper"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- 顶栏：应用名 + 收藏 + 更新 -->
     <LinearLayout
         android:orientation="horizontal"
-        android:padding="8dp"
+        android:gravity="center_vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="6dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
-        <EditText
-            android:id="@+id/etSearch"
-            android:hint="搜索标题（本地缓存）"
-            android:inputType="text"
+        <TextView
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content"
+            android:text="@string/app_title"
+            android:textColor="@color/inkPrimary"
+            android:textSize="22sp"
+            android:fontFamily="serif"
+            android:textStyle="bold" />
+        <ImageButton
+            android:id="@+id/btnFav"
+            android:contentDescription="@string/favorites"
+            android:src="@drawable/ic_star_outline"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/inkSecondary" />
+        <ImageButton
+            android:id="@+id/btnUpdate"
+            android:contentDescription="@string/check_update"
+            android:src="@drawable/ic_refresh"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/inkSecondary" />
+    </LinearLayout>
+
+    <!-- 搜索胶囊 -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="8dp"
+        android:paddingStart="14dp"
+        android:paddingEnd="6dp"
+        android:minHeight="44dp"
+        android:background="@drawable/bg_search_field"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <ImageView
+            android:src="@drawable/ic_search"
+            android:importantForAccessibility="no"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            app:tint="@color/inkSecondary" />
+        <EditText
+            android:id="@+id/etSearch"
+            android:hint="@string/search_hint"
+            android:textColorHint="@color/inkSecondary"
+            android:textColor="@color/inkPrimary"
+            android:background="@android:color/transparent"
+            android:inputType="text"
+            android:imeOptions="actionSearch"
+            android:layout_marginStart="8dp"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="44dp" />
         <Button
             android:id="@+id/btnSearch"
-            android:text="搜索"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:text="@string/search"
+            android:textColor="@color/accent"
+            android:minWidth="0dp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content" />
     </LinearLayout>
 
+    <!-- 分类条 -->
     <HorizontalScrollView
+        android:id="@+id/catScroll"
         android:scrollbars="none"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
         <LinearLayout
             android:id="@+id/catBar"
             android:orientation="horizontal"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="8dp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content" />
     </HorizontalScrollView>
 
-    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-        android:id="@+id/swipe"
+    <!-- 内容区：列表 / 空态 -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recycler"
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/swipe"
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+            android:layout_height="match_parent">
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recycler"
+                android:clipToPadding="false"
+                android:paddingBottom="8dp"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
-    <TextView
-        android:id="@+id/tvEmpty"
-        android:text="暂无数据，下拉刷新试试"
-        android:gravity="center"
-        android:visibility="gone"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
+        <LinearLayout
+            android:id="@+id/emptyBox"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:visibility="gone"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:id="@+id/tvEmptyTitle"
+                android:text="@string/empty_title"
+                android:textColor="@color/inkPrimary"
+                android:textSize="15sp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:id="@+id/tvEmptyHint"
+                android:text="@string/empty_hint"
+                android:textColor="@color/inkSecondary"
+                android:textSize="12sp" />
+        </LinearLayout>
 
+        <ProgressBar
+            android:id="@+id/progress"
+            android:layout_gravity="center"
+            android:visibility="gone"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </FrameLayout>
+
+    <!-- 分页栏 -->
     <LinearLayout
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:padding="6dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="10dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
-        <Button
+        <ImageButton
             android:id="@+id/btnPrev"
-            android:text="上一页"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
+            android:contentDescription="@string/prev_page"
+            android:src="@drawable/ic_chevron_left"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/accent" />
         <TextView
             android:id="@+id/tvPage"
             android:gravity="center"
-            android:text="1"
-            android:textSize="14sp"
+            android:textColor="@color/inkSecondary"
+            android:textSize="13sp"
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content" />
-        <Button
+        <ImageButton
             android:id="@+id/btnNext"
-            android:text="下一页"
+            android:contentDescription="@string/next_page"
+            android:src="@drawable/ic_chevron_right"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/accent" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnReload"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:text="@string/refresh"
+            android:textSize="12sp"
+            android:minWidth="0dp"
+            android:layout_marginStart="8dp"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
-        <ImageButton
-            android:id="@+id/btnFav"
-            android:contentDescription="收藏"
-            android:src="@android:drawable/btn_star_big_off"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:background="?attr/selectableItemBackgroundBorderless" />
-        <ImageButton
-            android:id="@+id/btnUpdate"
-            android:contentDescription="检查更新"
-            android:src="@android:drawable/ic_popup_sync"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:layout_height="40dp" />
     </LinearLayout>
-
-    <ProgressBar
-        android:id="@+id/progress"
-        style="@android:style/Widget.ProgressBar.Horizontal"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:max="100"
-        android:progress="0"
-        android:visibility="gone" />
 </LinearLayout>

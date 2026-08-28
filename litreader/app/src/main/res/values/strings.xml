@@ -1,3 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">LitReader</string>
+    <string name="app_title">纸墨书房</string>
+    <string name="search">搜索</string>
+    <string name="search_hint">在缓存中搜索标题…</string>
+    <string name="favorites">收藏</string>
+    <string name="check_update">检查更新</string>
+    <string name="prev_page">上一页</string>
+    <string name="next_page">下一页</string>
+    <string name="refresh">刷新</string>
+    <string name="empty_title">书架暂时是空的</string>
+    <string name="empty_hint">下拉刷新，或点右下角「刷新」拉取最新书单</string>
+    <string name="empty_fav_title">收藏夹还是空的</string>
+    <string name="empty_fav_hint">在书单里长按帖子即可收藏</string>
+    <string name="only_op">只看楼主</string>
+    <string name="see_all">看全部</string>
+    <string name="font_up">放大字号</string>
+    <string name="font_down">缩小字号</string>
+    <string name="favorite_add">收藏</string>
+    <string name="floor_prev">上一页楼层</string>
+    <string name="floor_next">下一页楼层</string>
+    <string name="back">返回</string>
 </resources>

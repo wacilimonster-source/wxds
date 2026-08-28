@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="accent">#1E88E5</color>
-    <color name="catTextNormal">#444444</color>
+    <!-- 纸墨书房 · 亮色（暖纸底 + 墨色字 + 朱砂点缀） -->
+    <color name="accent">#B4543E</color>
+    <color name="onPrimary">#FFFFFF</color>
+    <color name="accentDeep">#7E3323</color>
+    <color name="accentSoft">#F5E3DC</color>
+    <color name="bgPaper">#FAF6EF</color>
+    <color name="bgSurface">#FFFFFF</color>
+    <color name="inkPrimary">#241E17</color>
+    <color name="inkSecondary">#6E6354</color>
+    <color name="divider">#EAE2D6</color>
     <color name="catTextSelected">#FFFFFF</color>
+    <color name="catTextNormal">#9A4A36</color>
 </resources>
