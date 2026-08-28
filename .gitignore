@@ -6,7 +6,6 @@ build/
 *.iml
 
 # Android
-*.apk
 *.ap_
 *.dex
 local.properties
