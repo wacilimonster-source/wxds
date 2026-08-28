@@ -2,6 +2,7 @@ package com.example.litreader.data.repo
 
 import android.content.SharedPreferences
 import com.example.litreader.data.db.AppDatabase
+import com.example.litreader.data.db.TagCount
 import com.example.litreader.data.db.ThreadContentEntity
 import com.example.litreader.data.db.ThreadEntity
 import com.example.litreader.data.model.Post
@@ -9,6 +10,7 @@ import com.example.litreader.data.model.ThreadItem
 import com.example.litreader.data.source.CatalogPage
 import com.example.litreader.data.source.SourceRegistry
 import com.example.litreader.data.source.SourceStyle
+import kotlin.math.ceil
 
 class BookRepository(
     private val db: AppDatabase,
@@ -31,41 +33,53 @@ class BookRepository(
         replies = it.replies
     )
 
-    /** 在线拉取一页列表并入库。 */
-    suspend fun loadList(sourceId: String, page: Int, category: String = ""): List<ThreadEntity> {
-        val src = source(sourceId)
-        val items = src.getList(page, category)
-        val ents = items.map { toEntity(src.id, it) }
+    /** 目录页落库：盖 sitePage 章 + 保护已有收藏标记（否则 REPLACE 会重置收藏）。 */
+    private suspend fun upsertItems(sourceId: String, page: Int, items: List<ThreadItem>): List<ThreadEntity> {
+        if (items.isEmpty()) return emptyList()
+        val favSet = db.threadDao().favoriteTids(items.map { it.tid }).toSet()
+        val ents = items.map {
+            toEntity(sourceId, it).copy(sitePage = page, favorite = it.tid in favSet)
+        }
         db.threadDao().upsertAll(ents)
         return ents
     }
 
-    /** 本地分页（秒开）。文学区目录由 syncCatalog 全量落库，这里只读本地；
-     *  贴图区条目不足时自动在线补页。tag 为空串表示不过滤。 */
+    private fun rememberSitePages(sourceId: String, totalPages: Int) {
+        if (totalPages > 0) prefs?.edit()?.putInt("site_pages_$sourceId", totalPages)?.apply()
+    }
+
+    /** 站点总页数（页脚解析值，抓取时刷新）。 */
+    fun sitePageCount(sourceId: String): Int = prefs?.getInt("site_pages_$sourceId", 0) ?: 0
+
+    /** 在线拉取一页列表并入库。 */
+    suspend fun loadList(sourceId: String, page: Int, category: String = ""): List<ThreadEntity> {
+        val src = source(sourceId)
+        val cp = src.getCatalogPage(page, category)
+        rememberSitePages(sourceId, cp.totalPages)
+        return upsertItems(src.id, page, cp.items)
+    }
+
+    /** 文学区本地分页（30 条/页，目录由 syncCatalog 全量落库）。tag 为空串表示不过滤。 */
     suspend fun page(
         sourceId: String,
         page: Int,
         pageSize: Int,
         category: String,
-        tag: String = "",
-        onlyFavorite: Boolean = false
-    ): List<ThreadEntity> {
-        val local = db.threadDao().page(sourceId, category, tag, pageSize, (page - 1) * pageSize)
-        if (onlyFavorite) return local
-        if (local.size >= pageSize || page > 1) return local
-        if (source(sourceId).style != SourceStyle.IMAGE) return local
-        // 第一页且本地不足：预取几页做底量
-        var acc = emptyList<ThreadEntity>()
-        for (p in 1..PREFETCH_PAGES) {
-            acc = acc + loadList(sourceId, p, category)
-            if (acc.size >= pageSize) break
-        }
-        return if (acc.isNotEmpty()) db.threadDao().page(sourceId, category, tag, pageSize, 0) else local
-    }
+        tag: String = ""
+    ): List<ThreadEntity> =
+        db.threadDao().page(sourceId, category, tag, pageSize, (page - 1) * pageSize)
 
-    /** 各标签及数量（按数量降序，已剔除空标签）。 */
-    suspend fun tagCounts(sourceId: String): List<com.example.litreader.data.db.TagCount> =
-        db.threadDao().tagCounts(sourceId)
+    /**
+     * 贴图区分页：页码与站点对齐（100 条/页）。
+     * 本地没有该页 → 实时抓取落库；看过的页秒开、离线可回看。
+     * forceRefresh 时先删该页非收藏行再重抓（刷新语义）。
+     */
+    suspend fun galleryPage(sourceId: String, page: Int, forceRefresh: Boolean = false): List<ThreadEntity> {
+        if (forceRefresh) db.threadDao().deleteBySitePage(sourceId, page)
+        val cached = db.threadDao().bySitePage(sourceId, page)
+        if (cached.isNotEmpty()) return cached
+        return loadList(sourceId, page, "")
+    }
 
     /** 目录同步进度。 */
     data class SyncProgress(val page: Int, val totalPages: Int, val totalNew: Int)
@@ -87,13 +101,12 @@ class BookRepository(
         while (page <= MAX_SYNC_PAGES) {
             val cp: CatalogPage = src.getCatalogPage(page, "")
             if (cp.totalPages > totalPages) totalPages = cp.totalPages
+            rememberSitePages(sourceId, cp.totalPages)
             val tids = cp.items.map { it.tid }
             val known = if (tids.isEmpty()) emptySet() else db.threadDao().existingTids(tids).toSet()
             val newOnPage = cp.items.count { it.tid !in known }
             totalNew += newOnPage
-            if (cp.items.isNotEmpty()) {
-                db.threadDao().upsertAll(cp.items.map { toEntity(src.id, it) })
-            }
+            upsertItems(src.id, page, cp.items)
             onProgress(SyncProgress(page, totalPages, totalNew))
             if (!fullCrawl && newOnPage == 0) break
             if (totalPages in 1..page) break
@@ -113,6 +126,10 @@ class BookRepository(
         if (fixed.isNotEmpty()) db.threadDao().upsertAll(fixed)
         prefs?.edit()?.putBoolean("tag_cleanup_v06_$sourceId", true)?.apply()
     }
+
+    /** 各标签及数量（按数量降序，已剔除空标签）。 */
+    suspend fun tagCounts(sourceId: String): List<TagCount> =
+        db.threadDao().tagCounts(sourceId)
 
     /** filter 为 null 时返回全部区收藏。 */
     suspend fun favorites(filter: String?): List<ThreadEntity> =
@@ -173,7 +190,6 @@ class BookRepository(
     }
 
     companion object {
-        const val PREFETCH_PAGES = 4
         const val PAGE_SIZE = 30
         /** 目录全量同步的页数上限（fid=20 当前 68 页，留足余量） */
         const val MAX_SYNC_PAGES = 300

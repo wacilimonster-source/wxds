@@ -34,6 +34,15 @@ interface ThreadDao {
     @Query("SELECT tid FROM threads WHERE tid IN (:tids)")
     suspend fun existingTids(tids: List<String>): List<String>
 
+    @Query("SELECT tid FROM threads WHERE favorite = 1 AND tid IN (:tids)")
+    suspend fun favoriteTids(tids: List<String>): List<String>
+
+    @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND sitePage = :sitePage ORDER BY timestamp DESC")
+    suspend fun bySitePage(sourceId: String, sitePage: Int): List<ThreadEntity>
+
+    @Query("DELETE FROM threads WHERE sourceId = :sourceId AND sitePage = :sitePage AND favorite = 0")
+    suspend fun deleteBySitePage(sourceId: String, sitePage: Int)
+
     @Query("SELECT * FROM threads")
     suspend fun all(): List<ThreadEntity>
 

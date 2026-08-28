@@ -5,10 +5,16 @@ import com.example.litreader.data.db.AppDatabase
 import com.example.litreader.data.db.TagCount
 import com.example.litreader.data.db.ThreadEntity
 import com.example.litreader.data.repo.BookRepository
+import com.example.litreader.data.source.SourceRegistry
+import com.example.litreader.data.source.SourceStyle
 import kotlinx.coroutines.launch
 import kotlin.math.ceil
+import kotlin.math.max
 
 class ThreadListViewModel(private val repo: BookRepository, private val sourceId: String) : ViewModel() {
+    private val source = SourceRegistry.get(sourceId) ?: SourceRegistry.first()
+    private val isImage = source.style == SourceStyle.IMAGE
+
     private val _threads = MutableLiveData<List<ThreadEntity>>()
     val threads: LiveData<List<ThreadEntity>> = _threads
 
@@ -26,22 +32,35 @@ class ThreadListViewModel(private val repo: BookRepository, private val sourceId
     var tag = ""
     var reloading = false
 
-    var totalCount = 0
-        private set
-    val totalPages: Int
-        get() = if (totalCount == 0) 1 else ceil(totalCount.toDouble() / BookRepository.PAGE_SIZE).toInt()
+    private var totalCount = 0
+    private var siteTotalPages = 0
 
-    fun load(page: Int, category: String = this.category) {
+    /** 文学区 30 条/页（本地目录）；贴图区 100 条/页（与站点页对齐）。 */
+    val totalPages: Int
+        get() = if (isImage) max(siteTotalPages, page)
+        else if (totalCount == 0) 1
+        else ceil(totalCount.toDouble() / BookRepository.PAGE_SIZE).toInt()
+
+    fun load(page: Int, category: String = this.category, force: Boolean = false) {
         this.page = page
         this.category = category
         _loading.value = true
         viewModelScope.launch {
             try {
-                val list = repo.page(sourceId, page, BookRepository.PAGE_SIZE, category, tag)
+                val list = if (isImage) {
+                    repo.galleryPage(sourceId, page, force)
+                } else {
+                    repo.page(sourceId, page, BookRepository.PAGE_SIZE, category, tag)
+                }
                 _threads.value = list
-                totalCount = repo.categoryCount(sourceId, category, tag)
-                _tags.value = repo.tagCounts(sourceId)
-                _error.value = if (list.isEmpty() && page == 1 && !reloading) "暂无数据" else null
+                if (isImage) {
+                    siteTotalPages = repo.sitePageCount(sourceId)
+                    _tags.value = emptyList()
+                } else {
+                    totalCount = repo.categoryCount(sourceId, category, tag)
+                    _tags.value = repo.tagCounts(sourceId)
+                }
+                _error.value = if (list.isEmpty() && page == 1 && !reloading && !force) "暂无数据" else null
             } catch (e: Exception) {
                 _error.value = "加载失败：${e.message ?: "网络错误"}"
             } finally {
@@ -58,7 +77,7 @@ class ThreadListViewModel(private val repo: BookRepository, private val sourceId
 
     fun refresh() {
         reloading = true
-        load(1)
+        if (isImage) load(page, force = true) else load(1)
     }
 
     fun nextPage() = load(page + 1)

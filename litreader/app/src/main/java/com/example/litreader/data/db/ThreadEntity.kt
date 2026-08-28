@@ -16,5 +16,7 @@ data class ThreadEntity(
     val tag: String = "",
     val likes: String = "",
     val replies: String = "",
+    /** 抓取自站点第几页（贴图区页码与站点对齐；文学区目录同步时同样记录） */
+    val sitePage: Int = 0,
     val favorite: Boolean = false
 )
