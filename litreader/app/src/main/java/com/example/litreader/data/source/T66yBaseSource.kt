@@ -20,17 +20,27 @@ abstract class T66yBaseSource : BookSource {
     protected val base = "https://www.t66y.com"
 
     override suspend fun getList(page: Int, category: String): List<ThreadItem> =
+        getCatalogPage(page, category).items
+
+    override suspend fun getCatalogPage(page: Int, category: String): CatalogPage =
         withContext(Dispatchers.IO) {
             val cat = if (category.isNotEmpty()) "&type=$category" else ""
             val url = "$base/thread0806.php?fid=$fid&page=$page$cat"
             val doc = Jsoup.parse(ByteArrayInputStream(HttpClient.fetch(url)), null, base)
-            val rows = doc.select("#ajaxtable tr.tr3")
             val items = ArrayList<ThreadItem>()
-            for (tr in rows) {
+            for (tr in doc.select("#ajaxtable tr.tr3")) {
                 parseRow(tr, category)?.let { items.add(it) }
             }
-            items
+            CatalogPage(items, parseTotalPages(doc))
         }
+
+    /** 页脚 "1/68" 输入框或 id=last 末页链接解析总页数。 */
+    private fun parseTotalPages(doc: org.jsoup.nodes.Document): Int {
+        val html = doc.html()
+        Regex("""value="\d+/(\d+)"""").find(html)?.groupValues?.get(1)?.toIntOrNull()
+            ?.takeIf { it > 0 }?.let { return it }
+        return Regex("""page=(\d+)" id="last"""").find(html)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+    }
 
     protected open fun parseRow(tr: Element, category: String): ThreadItem? {
         val a = tr.selectFirst("h3 a[id^=t]") ?: return null

@@ -6,7 +6,7 @@ class LitSource : T66yBaseSource() {
     override val name = "文學交流"
     override val shortName = "文学"
     override val fid = "20"
-    override val remotePageSize = 30
+    override val remotePageSize = 100
     override val style = SourceStyle.TEXT
 
     override val categories = listOf(

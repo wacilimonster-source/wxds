@@ -1,5 +1,6 @@
 package com.example.litreader.ui.list
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -28,6 +29,8 @@ class ThreadListFragment : Fragment() {
     private lateinit var vm: ThreadListViewModel
     private lateinit var adapter: ThreadAdapter
     private var sourceId: String = ""
+    private var syncVm: CatalogSyncViewModel? = null
+    private var lastObservedRunning: Boolean? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,11 +57,27 @@ class ThreadListFragment : Fragment() {
         bind.recycler.layoutManager = LinearLayoutManager(requireContext())
         bind.recycler.adapter = adapter
 
+        val isText = source.style == SourceStyle.TEXT
+        if (isText) {
+            // 文学区：目录全量落库 + 增量同步（MainActivity 进 App 已触发，此处共享同一 VM）
+            syncVm = ViewModelProvider(
+                requireActivity(),
+                CatalogSyncVmFactory(
+                    (requireActivity().application as App).database,
+                    requireActivity().getSharedPreferences("catalog", Context.MODE_PRIVATE),
+                    source.id
+                )
+            )[CatalogSyncViewModel::class.java]
+            syncVm?.state?.observe(viewLifecycleOwner, ::renderSync)
+        } else {
+            bind.tvSyncStatus.visibility = View.GONE
+        }
+
         bind.swipe.setColorSchemeColors(ContextCompat.getColor(requireContext(), R.color.accent))
-        bind.swipe.setOnRefreshListener { vm.refresh() }
+        bind.swipe.setOnRefreshListener { onManualRefresh() }
         bind.btnPrev.setOnClickListener { vm.prevPage() }
         bind.btnNext.setOnClickListener { vm.nextPage() }
-        bind.btnReload.setOnClickListener { vm.refresh() }
+        bind.btnReload.setOnClickListener { onManualRefresh() }
         bind.btnSearch.setOnClickListener { startActivity(Intent(requireContext(), SearchActivity::class.java)) }
         bind.btnMore.setOnClickListener { showMoreMenu(view) }
 
@@ -68,10 +87,10 @@ class ThreadListFragment : Fragment() {
             bind.swipe.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
             if (list.isEmpty()) {
                 bind.tvEmptyTitle.setText(
-                    if (source.style == SourceStyle.IMAGE) R.string.empty_gallery_title else R.string.empty_title
+                    if (isText) R.string.empty_title else R.string.empty_gallery_title
                 )
                 bind.tvEmptyHint.setText(
-                    if (source.style == SourceStyle.IMAGE) R.string.empty_gallery_hint else R.string.empty_hint
+                    if (isText) R.string.empty_hint else R.string.empty_gallery_hint
                 )
             }
             renderPageLabel()
@@ -88,6 +107,43 @@ class ThreadListFragment : Fragment() {
         }
 
         vm.load(1)
+    }
+
+    /** 手动刷新：文学区走目录增量同步（完成回调里会重载列表），贴图区沿用在线补页。 */
+    private fun onManualRefresh() {
+        val sync = syncVm
+        if (sync != null) {
+            vm.load(vm.page)
+            sync.sync()
+        } else {
+            vm.refresh()
+        }
+    }
+
+    private fun renderSync(st: CatalogSyncViewModel.SyncState) {
+        if (st.running) {
+            bind.tvSyncStatus.visibility = View.VISIBLE
+            bind.tvSyncStatus.text = getString(
+                R.string.sync_progress, st.page, maxOf(st.totalPages, st.page), st.totalNew
+            )
+        } else {
+            bind.tvSyncStatus.visibility = View.GONE
+            if (lastObservedRunning == true) {
+                // 同步刚结束
+                if (st.error != null) {
+                    Toast.makeText(
+                        requireContext(),
+                        getString(R.string.sync_failed, st.error),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                vm.load(vm.page)
+            } else if (lastObservedRunning == null && st.error == null) {
+                // 进入页面时同步已完成（粘性状态）→ 直接读一次库
+                vm.load(vm.page)
+            }
+        }
+        lastObservedRunning = st.running
     }
 
     private fun showMoreMenu(anchor: View) {

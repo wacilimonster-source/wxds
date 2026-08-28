@@ -43,6 +43,18 @@
             app:tint="@color/inkSecondary" />
     </LinearLayout>
 
+    <!-- 目录同步进度（仅文学区使用） -->
+    <TextView
+        android:id="@+id/tvSyncStatus"
+        android:visibility="gone"
+        android:textSize="12sp"
+        android:textColor="@color/inkSecondary"
+        android:paddingStart="20dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="4dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
     <!-- 内容区：列表 / 空态 -->
     <FrameLayout
         android:layout_width="match_parent"

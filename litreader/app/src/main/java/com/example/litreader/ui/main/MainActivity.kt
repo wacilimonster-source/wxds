@@ -3,10 +3,14 @@ package com.example.litreader.ui.main
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import com.example.litreader.App
 import com.example.litreader.R
 import com.example.litreader.databinding.ActivityMainBinding
 import com.example.litreader.ui.fav.FavoritesFragment
+import com.example.litreader.ui.list.CatalogSyncViewModel
+import com.example.litreader.ui.list.CatalogSyncVmFactory
 import com.example.litreader.ui.list.ThreadListFragment
 import com.example.litreader.util.UpdateManager
 
@@ -30,6 +34,16 @@ class MainActivity : AppCompatActivity() {
             show(TAG_LIT)
             UpdateManager.checkAndPromptUpdate(this, lifecycleScope, silent = true)
         }
+
+        // 每次进入 App：文学区目录增量同步（后台跑，首次为全量，不阻塞 UI）
+        ViewModelProvider(
+            this,
+            CatalogSyncVmFactory(
+                (application as App).database,
+                getSharedPreferences("catalog", MODE_PRIVATE),
+                SECTION_LIT
+            )
+        )[CatalogSyncViewModel::class.java].sync()
     }
 
     /** 各 Tab 常驻内存，切换只做 show/hide，保留滚动位置与分页状态。 */

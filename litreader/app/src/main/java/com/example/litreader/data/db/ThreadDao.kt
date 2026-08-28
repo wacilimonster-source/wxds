@@ -31,6 +31,9 @@ interface ThreadDao {
     @Query("SELECT * FROM threads WHERE tid = :tid")
     suspend fun byId(tid: String): ThreadEntity?
 
+    @Query("SELECT tid FROM threads WHERE tid IN (:tids)")
+    suspend fun existingTids(tids: List<String>): List<String>
+
     @Query("UPDATE threads SET favorite = :fav WHERE tid = :tid")
     suspend fun setFavorite(tid: String, fav: Boolean)
 
