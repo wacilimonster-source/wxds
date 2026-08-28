@@ -26,6 +26,14 @@
             android:fontFamily="serif"
             android:textStyle="bold" />
         <ImageButton
+            android:id="@+id/btnRefresh"
+            android:contentDescription="@string/refresh"
+            android:src="@drawable/ic_refresh"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/inkSecondary" />
+        <ImageButton
             android:id="@+id/btnSearch"
             android:contentDescription="@string/search"
             android:src="@drawable/ic_search"
@@ -42,6 +50,23 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             app:tint="@color/inkSecondary" />
     </LinearLayout>
+
+    <!-- 标签筛选条（按目录聚合动态生成） -->
+    <HorizontalScrollView
+        android:id="@+id/tagBar"
+        android:scrollbars="none"
+        android:visibility="gone"
+        android:paddingStart="20dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="4dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <LinearLayout
+            android:id="@+id/tagRow"
+            android:orientation="horizontal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </HorizontalScrollView>
 
     <!-- 目录同步进度（仅文学区使用） -->
     <TextView
@@ -139,14 +164,5 @@
             android:layout_height="44dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             app:tint="@color/accent" />
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnReload"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:text="@string/refresh"
-            android:textSize="12sp"
-            android:minWidth="0dp"
-            android:layout_marginStart="8dp"
-            android:layout_width="wrap_content"
-            android:layout_height="40dp" />
     </LinearLayout>
 </LinearLayout>

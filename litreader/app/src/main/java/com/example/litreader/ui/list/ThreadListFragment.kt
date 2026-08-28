@@ -3,11 +3,18 @@ package com.example.litreader.ui.list
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.text.InputType
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.PopupMenu
+import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
@@ -15,6 +22,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.litreader.App
 import com.example.litreader.R
+import com.example.litreader.data.db.TagCount
 import com.example.litreader.data.db.ThreadEntity
 import com.example.litreader.data.source.SourceRegistry
 import com.example.litreader.data.source.SourceStyle
@@ -75,9 +83,11 @@ class ThreadListFragment : Fragment() {
 
         bind.swipe.setColorSchemeColors(ContextCompat.getColor(requireContext(), R.color.accent))
         bind.swipe.setOnRefreshListener { onManualRefresh() }
+        bind.btnRefresh.setOnClickListener { onManualRefresh() }
         bind.btnPrev.setOnClickListener { vm.prevPage() }
         bind.btnNext.setOnClickListener { vm.nextPage() }
-        bind.btnReload.setOnClickListener { onManualRefresh() }
+        bind.tvPage.setOnClickListener { showJumpDialog() }
+        bind.tvPage.contentDescription = getString(R.string.jump_page)
         bind.btnSearch.setOnClickListener { startActivity(Intent(requireContext(), SearchActivity::class.java)) }
         bind.btnMore.setOnClickListener { showMoreMenu(view) }
 
@@ -95,6 +105,7 @@ class ThreadListFragment : Fragment() {
             }
             renderPageLabel()
         }
+        vm.tags.observe(viewLifecycleOwner) { renderTags(it) }
         vm.loading.observe(viewLifecycleOwner) { loading ->
             if (!loading) bind.swipe.isRefreshing = false
             bind.progress.visibility = if (loading && !bind.swipe.isRefreshing) View.VISIBLE else View.GONE
@@ -145,6 +156,67 @@ class ThreadListFragment : Fragment() {
         }
         lastObservedRunning = st.running
     }
+
+    /** 标签筛选 chips：全部 + 目录里实际出现的标签（带数量）。 */
+    private fun renderTags(counts: List<TagCount>) {
+        bind.tagBar.visibility = if (counts.isEmpty()) View.GONE else View.VISIBLE
+        val row = bind.tagRow
+        row.removeAllViews()
+        addChip(getString(R.string.filter_all), vm.tag.isEmpty()) { if (vm.tag.isNotEmpty()) vm.selectTag("") }
+        counts.forEach { tc ->
+            addChip("${tc.tag} ${tc.n}", vm.tag == tc.tag) { if (vm.tag != tc.tag) vm.selectTag(tc.tag) }
+        }
+    }
+
+    private fun addChip(label: String, selected: Boolean, onClick: () -> Unit) {
+        val tv = TextView(requireContext()).apply {
+            text = label
+            textSize = 11f
+            setPadding(dp(9), dp(4), dp(9), dp(4))
+            setBackgroundResource(if (selected) R.drawable.bg_chip_selected else R.drawable.bg_tag)
+            setTextColor(
+                ContextCompat.getColor(
+                    requireContext(),
+                    if (selected) R.color.catTextSelected else R.color.catTextNormal
+                )
+            )
+            setOnClickListener { onClick() }
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { marginEnd = dp(6) }
+        }
+        bind.tagRow.addView(tv)
+    }
+
+    /** 跳页：点「X / Y」直接输入目标页。 */
+    private fun showJumpDialog() {
+        val total = vm.totalPages
+        val input = EditText(requireContext()).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+            hint = "1 - $total"
+        }
+        val wrap = FrameLayout(requireContext()).apply {
+            val pad = dp(20)
+            setPadding(pad, dp(10), pad, 0)
+            addView(input)
+        }
+        val dialog = AlertDialog.Builder(requireContext())
+            .setTitle(getString(R.string.jump_page, total))
+            .setView(wrap)
+            .setPositiveButton(R.string.jump_go) { _, _ ->
+                val n = input.text.toString().toIntOrNull()?.coerceIn(1, total)
+                if (n != null) vm.load(n)
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .create()
+        dialog.show()
+        dialog.window?.let { w ->
+            w.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+        }
+        input.requestFocus()
+    }
+
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     private fun showMoreMenu(anchor: View) {
         val popup = PopupMenu(requireContext(), anchor)

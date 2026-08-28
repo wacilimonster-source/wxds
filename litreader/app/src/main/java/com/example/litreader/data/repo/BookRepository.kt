@@ -41,15 +41,16 @@ class BookRepository(
     }
 
     /** 本地分页（秒开）。文学区目录由 syncCatalog 全量落库，这里只读本地；
-     *  贴图区条目不足时自动在线补页。 */
+     *  贴图区条目不足时自动在线补页。tag 为空串表示不过滤。 */
     suspend fun page(
         sourceId: String,
         page: Int,
         pageSize: Int,
         category: String,
-        onlyFavorite: Boolean
+        tag: String = "",
+        onlyFavorite: Boolean = false
     ): List<ThreadEntity> {
-        val local = db.threadDao().page(sourceId, category, pageSize, (page - 1) * pageSize)
+        val local = db.threadDao().page(sourceId, category, tag, pageSize, (page - 1) * pageSize)
         if (onlyFavorite) return local
         if (local.size >= pageSize || page > 1) return local
         if (source(sourceId).style != SourceStyle.IMAGE) return local
@@ -59,8 +60,12 @@ class BookRepository(
             acc = acc + loadList(sourceId, p, category)
             if (acc.size >= pageSize) break
         }
-        return if (acc.isNotEmpty()) db.threadDao().page(sourceId, category, pageSize, 0) else local
+        return if (acc.isNotEmpty()) db.threadDao().page(sourceId, category, tag, pageSize, 0) else local
     }
+
+    /** 各标签及数量（按数量降序，已剔除空标签）。 */
+    suspend fun tagCounts(sourceId: String): List<com.example.litreader.data.db.TagCount> =
+        db.threadDao().tagCounts(sourceId)
 
     /** 目录同步进度。 */
     data class SyncProgress(val page: Int, val totalPages: Int, val totalNew: Int)
@@ -74,6 +79,7 @@ class BookRepository(
     suspend fun syncCatalog(sourceId: String, onProgress: suspend (SyncProgress) -> Unit) {
         val src = source(sourceId)
         val crawledKey = "catalog_crawled_$sourceId"
+        cleanupLegacyTags(sourceId)
         val fullCrawl = prefs?.getBoolean(crawledKey, false) != true
         var totalNew = 0
         var page = 1
@@ -96,14 +102,26 @@ class BookRepository(
         prefs?.edit()?.putBoolean(crawledKey, true)?.apply()
     }
 
+    /** 0.6 前 tag 存的是 "[現代奇幻]" 带括注原文（含积分噪音），一次性清洗为括注内文本。 */
+    private suspend fun cleanupLegacyTags(sourceId: String) {
+        if (prefs?.getBoolean("tag_cleanup_v06_$sourceId", false) == true) return
+        val rows = db.threadDao().all().filter { it.sourceId == sourceId }
+        val fixed = rows.mapNotNull { row ->
+            val cleaned = Regex("""\[([^\[\]]+)""").find(row.tag)?.groupValues?.get(1)?.trim() ?: ""
+            if (cleaned != row.tag) row.copy(tag = cleaned) else null
+        }
+        if (fixed.isNotEmpty()) db.threadDao().upsertAll(fixed)
+        prefs?.edit()?.putBoolean("tag_cleanup_v06_$sourceId", true)?.apply()
+    }
+
     /** filter 为 null 时返回全部区收藏。 */
     suspend fun favorites(filter: String?): List<ThreadEntity> =
         if (filter == null) db.threadDao().favoritesAll()
         else db.threadDao().favorites(filter)
 
-    suspend fun categoryCount(sourceId: String, category: String): Int =
-        if (category.isEmpty()) db.threadDao().totalCount(sourceId)
-        else db.threadDao().countByCategory(sourceId, category)
+    suspend fun categoryCount(sourceId: String, category: String, tag: String = ""): Int =
+        if (category.isEmpty() && tag.isEmpty()) db.threadDao().totalCount(sourceId)
+        else db.threadDao().countByCategory(sourceId, category, tag)
 
     /** 跨区本地搜索（搜的是已缓存进库的标题）。 */
     suspend fun search(q: String): List<ThreadEntity> =

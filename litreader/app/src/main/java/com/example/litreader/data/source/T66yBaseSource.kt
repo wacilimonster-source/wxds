@@ -49,8 +49,9 @@ abstract class T66yBaseSource : BookSource {
         val tag = titleCell?.let { c ->
             val clone = c.clone()
             clone.select("h3, span.thread_page, span.mark_gen, div.f12, div.s5").remove()
-            // 标题旁的 ↑N 推荐数不属于版块标签，剔除
-            clone.ownText().replace(Regex("↑\\s*\\d+"), "").trim()
+            // 标题旁的 ↑N 推荐数与积分奖励是噪音；标签取首个 [XXX] 括注（即版块分类）
+            val raw = clone.ownText().replace(Regex("↑\\s*\\d+"), "")
+            Regex("""\[([^\[\]]+)""").find(raw)?.groupValues?.get(1)?.trim() ?: ""
         } ?: ""
         val tds = tr.select("td")
         val likes = tr.selectFirst("td span.sred, td span.s3, td span.b")?.text()?.trim() ?: ""

@@ -10,8 +10,8 @@ interface ThreadDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(list: List<ThreadEntity>)
 
-    @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND category = :category ORDER BY timestamp DESC LIMIT :limit OFFSET :offset")
-    suspend fun page(sourceId: String, category: String, limit: Int, offset: Int): List<ThreadEntity>
+    @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND category = :category AND (:tag = '' OR tag = :tag) ORDER BY timestamp DESC LIMIT :limit OFFSET :offset")
+    suspend fun page(sourceId: String, category: String, tag: String, limit: Int, offset: Int): List<ThreadEntity>
 
     @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND category = :category")
     suspend fun byCategory(sourceId: String, category: String): List<ThreadEntity>
@@ -34,18 +34,27 @@ interface ThreadDao {
     @Query("SELECT tid FROM threads WHERE tid IN (:tids)")
     suspend fun existingTids(tids: List<String>): List<String>
 
+    @Query("SELECT * FROM threads")
+    suspend fun all(): List<ThreadEntity>
+
+    @Query("SELECT tag, COUNT(*) AS n FROM threads WHERE sourceId = :sourceId AND tag != '' GROUP BY tag ORDER BY n DESC")
+    suspend fun tagCounts(sourceId: String): List<TagCount>
+
     @Query("UPDATE threads SET favorite = :fav WHERE tid = :tid")
     suspend fun setFavorite(tid: String, fav: Boolean)
 
     @Query("SELECT favorite FROM threads WHERE tid = :tid")
     suspend fun isFavorite(tid: String): Boolean?
 
-    @Query("SELECT COUNT(*) FROM threads WHERE sourceId = :sourceId AND category = :category")
-    suspend fun countByCategory(sourceId: String, category: String): Int
+    @Query("SELECT COUNT(*) FROM threads WHERE sourceId = :sourceId AND category = :category AND (:tag = '' OR tag = :tag)")
+    suspend fun countByCategory(sourceId: String, category: String, tag: String): Int
 
     @Query("SELECT COUNT(*) FROM threads WHERE sourceId = :sourceId")
     suspend fun totalCount(sourceId: String): Int
 }
+
+/** 标签聚合结果（Room POJO）。 */
+data class TagCount(val tag: String, val n: Int)
 
 @Dao
 interface ThreadContentDao {
