@@ -60,14 +60,7 @@ class SearchActivity : AppCompatActivity() {
 
     override fun onSupportNavigateUp(): Boolean { finish(); return true }
 
-    private fun open(t: ThreadEntity) {
-        startActivity(Intent(this, ThreadDetailActivity::class.java).apply {
-            putExtra("tid", t.tid)
-            putExtra("title", t.title)
-            putExtra("favorite", t.favorite)
-            putExtra("sourceId", t.sourceId)
-        })
-    }
+    private fun open(t: ThreadEntity) = com.example.litreader.ui.ThreadNav.open(this, t)
 
     private fun hideKeyboard() {
         val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager

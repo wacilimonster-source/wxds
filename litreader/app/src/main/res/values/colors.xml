@@ -16,4 +16,6 @@
     <color name="galleryBg">#000000</color>
     <color name="galleryOnDark">#EDE5D8</color>
     <color name="gallerySubtle">#A3988A</color>
+    <!-- 阅读器菜单底 -->
+    <color name="readerMenuBg">#E6141414</color>
 </resources>

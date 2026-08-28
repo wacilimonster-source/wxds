@@ -232,14 +232,7 @@ class ThreadListFragment : Fragment() {
         bind.tvPage.text = "${vm.page} / ${vm.totalPages}"
     }
 
-    private fun open(t: ThreadEntity) {
-        startActivity(Intent(requireContext(), ThreadDetailActivity::class.java).apply {
-            putExtra("tid", t.tid)
-            putExtra("title", t.title)
-            putExtra("favorite", t.favorite)
-            putExtra("sourceId", t.sourceId)
-        })
-    }
+    private fun open(t: ThreadEntity) = com.example.litreader.ui.ThreadNav.open(requireContext(), t)
 
     companion object {
         private const val ARG_SOURCE = "sourceId"

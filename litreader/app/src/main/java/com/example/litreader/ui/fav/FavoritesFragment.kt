@@ -63,12 +63,5 @@ class FavoritesFragment : Fragment() {
         if (::vm.isInitialized) vm.load()
     }
 
-    private fun open(t: ThreadEntity) {
-        startActivity(Intent(requireContext(), ThreadDetailActivity::class.java).apply {
-            putExtra("tid", t.tid)
-            putExtra("title", t.title)
-            putExtra("favorite", t.favorite)
-            putExtra("sourceId", t.sourceId)
-        })
-    }
+    private fun open(t: ThreadEntity) = com.example.litreader.ui.ThreadNav.open(requireContext(), t)
 }

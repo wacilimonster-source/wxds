@@ -46,4 +46,20 @@
     <string name="jump_page">跳转到页（共 %1$d 页）</string>
     <string name="jump_go">跳转</string>
     <string name="cancel">取消</string>
+
+    <string name="reader_mode">阅读器模式</string>
+    <string name="reader_forum">论坛模式</string>
+    <string name="reader_floor_jump">楼层跳转</string>
+    <string name="reader_line">行距 %1$s</string>
+    <string name="reader_theme">主题 %1$s</string>
+    <string name="reader_flip">翻页 %1$s</string>
+    <string name="reader_marks">标记 %1$s</string>
+    <string name="reader_flip_lr">左右</string>
+    <string name="reader_scroll">滚动</string>
+    <string name="reader_scroll_pos">滚动模式</string>
+    <string name="reader_restored">已回到上次阅读位置</string>
+    <string name="reader_empty">此帖暂无可读正文</string>
+    <string name="retry">重试</string>
+    <string name="on">开</string>
+    <string name="off">关</string>
 </resources>

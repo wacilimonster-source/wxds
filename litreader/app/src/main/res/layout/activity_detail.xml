@@ -62,6 +62,16 @@
             android:minWidth="0dp"
             android:layout_width="wrap_content"
             android:layout_height="36dp" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnReader"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:text="@string/reader_mode"
+            android:textSize="12sp"
+            android:minWidth="0dp"
+            android:layout_marginStart="8dp"
+            android:visibility="gone"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp" />
         <View
             android:layout_width="0dp"
             android:layout_weight="1"

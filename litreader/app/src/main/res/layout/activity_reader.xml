@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- 正文容器 -->
+    <FrameLayout
+        android:id="@+id/content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/pager"
+            android:visibility="gone"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <ScrollView
+            android:id="@+id/scrollWrap"
+            android:visibility="gone"
+            android:scrollbars="none"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <TextView
+                android:id="@+id/scrollText"
+                android:textSize="17sp"
+                android:lineSpacingMultiplier="1.9"
+                android:paddingStart="22dp"
+                android:paddingEnd="22dp"
+                android:paddingTop="26dp"
+                android:paddingBottom="26dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </ScrollView>
+
+        <!-- 错误/空态 -->
+        <LinearLayout
+            android:id="@+id/errorBox"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:visibility="gone"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+            <TextView
+                android:id="@+id/tvError"
+                android:textSize="14sp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+            <LinearLayout
+                android:orientation="horizontal"
+                android:layout_marginTop="14dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content">
+                <TextView
+                    android:id="@+id/btnRetry"
+                    android:text="@string/retry"
+                    android:textSize="14sp"
+                    android:paddingStart="18dp"
+                    android:paddingEnd="18dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
+                    android:background="@drawable/bg_gallery_action"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+                <TextView
+                    android:id="@+id/btnErrorForum"
+                    android:text="@string/reader_forum"
+                    android:textSize="14sp"
+                    android:layout_marginStart="12dp"
+                    android:paddingStart="18dp"
+                    android:paddingEnd="18dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
+                    android:background="@drawable/bg_gallery_action"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
+
+    <ProgressBar
+        android:id="@+id/progress"
+        android:layout_gravity="center"
+        android:visibility="gone"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+
+    <!-- 菜单-顶部 -->
+    <LinearLayout
+        android:id="@+id/menuTop"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/readerMenuBg"
+        android:paddingStart="8dp"
+        android:paddingEnd="14dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:contentDescription="@string/back"
+            android:src="@drawable/ic_back"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/galleryOnDark" />
+        <TextView
+            android:id="@+id/tvTitle"
+            android:textSize="15sp"
+            android:textColor="@color/galleryOnDark"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:layout_marginStart="4dp"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content" />
+        <ImageButton
+            android:id="@+id/btnFav"
+            android:contentDescription="@string/favorite_add"
+            android:src="@drawable/ic_star_outline"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/galleryOnDark" />
+    </LinearLayout>
+
+    <!-- 菜单-底部 -->
+    <LinearLayout
+        android:id="@+id/menuBottom"
+        android:orientation="vertical"
+        android:background="@color/readerMenuBg"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="14dp"
+        android:layout_gravity="bottom"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <TextView
+                android:id="@+id/tvPagePos"
+                android:textSize="12sp"
+                android:textColor="@color/galleryOnDark"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+            <SeekBar
+                android:id="@+id/seek"
+                android:layout_marginStart="10dp"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:thumbTint="@color/accent"
+                android:progressTint="@color/accent"
+                android:progressBackgroundTint="@color/gallerySubtle" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_marginTop="6dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <TextView
+                android:id="@+id/btnFontDown"
+                android:text="A−"
+                style="@style/ReaderMenuItem" />
+            <TextView
+                android:id="@+id/tvFont"
+                android:text="17"
+                style="@style/ReaderMenuItem" />
+            <TextView
+                android:id="@+id/btnFontUp"
+                android:text="A+"
+                style="@style/ReaderMenuItem" />
+            <TextView
+                android:id="@+id/btnLine"
+                style="@style/ReaderMenuItem" />
+            <TextView
+                android:id="@+id/btnTheme"
+                style="@style/ReaderMenuItem" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <TextView
+                android:id="@+id/btnFlip"
+                style="@style/ReaderMenuItem" />
+            <TextView
+                android:id="@+id/btnMarks"
+                style="@style/ReaderMenuItem" />
+            <TextView
+                android:id="@+id/btnFloorJump"
+                android:text="@string/reader_floor_jump"
+                style="@style/ReaderMenuItem" />
+            <TextView
+                android:id="@+id/btnForum"
+                android:text="@string/reader_forum"
+                style="@style/ReaderMenuItem" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

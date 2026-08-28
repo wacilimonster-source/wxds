@@ -32,6 +32,7 @@
             </intent-filter>
         </activity>
         <activity android:name=".ui.detail.ThreadDetailActivity" />
+        <activity android:name=".ui.reader.ReaderActivity" />
         <activity android:name=".ui.gallery.GalleryActivity" />
         <activity android:name=".ui.search.SearchActivity" />
     </application>

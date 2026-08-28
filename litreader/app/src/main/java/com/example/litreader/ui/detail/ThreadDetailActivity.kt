@@ -18,6 +18,7 @@ import com.example.litreader.data.source.SourceRegistry
 import com.example.litreader.data.source.SourceStyle
 import com.example.litreader.databinding.ActivityDetailBinding
 import com.example.litreader.ui.gallery.GalleryActivity
+import com.example.litreader.ui.reader.ReaderActivity
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
@@ -68,6 +69,15 @@ class ThreadDetailActivity : AppCompatActivity() {
             }
             val source = SourceRegistry.get(sourceId) ?: SourceRegistry.first()
             if (source.style == SourceStyle.IMAGE) setupImageMode()
+            else bind.btnReader.visibility = View.VISIBLE
+            bind.btnReader.setOnClickListener {
+                startActivity(Intent(this@ThreadDetailActivity, ReaderActivity::class.java).apply {
+                    putExtra("tid", tid)
+                    putExtra("title", bind.tvChapter.text.toString())
+                    putExtra("sourceId", sourceId)
+                })
+                finish()
+            }
             setupWeb()
             bind.btnBack.setOnClickListener { finish() }
             bind.btnOp.setOnClickListener {
