@@ -5,6 +5,7 @@ import com.example.litreader.data.db.AppDatabase
 import com.example.litreader.data.db.ThreadEntity
 import com.example.litreader.data.repo.BookRepository
 import kotlinx.coroutines.launch
+import kotlin.math.ceil
 
 class ThreadListViewModel(private val repo: BookRepository) : ViewModel() {
     private val _threads = MutableLiveData<List<ThreadEntity>>()
@@ -18,8 +19,12 @@ class ThreadListViewModel(private val repo: BookRepository) : ViewModel() {
 
     var page = 1
     var category = ""
-    var onlyFavorite = false
     var reloading = false
+
+    var totalCount = 0
+        private set
+    val totalPages: Int
+        get() = if (totalCount == 0) 1 else ceil(totalCount.toDouble() / BookRepository.PAGE_SIZE).toInt()
 
     fun load(page: Int, category: String = this.category) {
         this.page = page
@@ -27,9 +32,10 @@ class ThreadListViewModel(private val repo: BookRepository) : ViewModel() {
         _loading.value = true
         viewModelScope.launch {
             try {
-                val list = if (onlyFavorite) repo.favorites() else repo.page(page, BookRepository.PAGE_SIZE, category, false)
+                val list = repo.page(page, BookRepository.PAGE_SIZE, category, false)
                 _threads.value = list
-                _error.value = if (list.isEmpty() && !onlyFavorite && page == 1 && !reloading) "暂无数据，下拉刷新试试" else null
+                totalCount = repo.categoryCount(category)
+                _error.value = if (list.isEmpty() && page == 1 && !reloading) "暂无数据" else null
             } catch (e: Exception) {
                 _error.value = "加载失败：${e.message ?: "网络错误"}"
             } finally {
@@ -52,19 +58,7 @@ class ThreadListViewModel(private val repo: BookRepository) : ViewModel() {
         viewModelScope.launch {
             repo.setFavorite(t.tid, !t.favorite)
             val cur = _threads.value ?: return@launch
-            _threads.value = if (onlyFavorite) cur.filter { it.tid != t.tid }
-            else cur.map { if (it.tid == t.tid) it.copy(favorite = !t.favorite) else it }
-        }
-    }
-
-    fun search(q: String) {
-        _loading.value = true
-        viewModelScope.launch {
-            try {
-                _threads.value = repo.search(q)
-            } catch (e: Exception) {
-                _error.value = "搜索失败：${e.message ?: "本地错误"}"
-            } finally { _loading.value = false }
+            _threads.value = cur.map { if (it.tid == t.tid) it.copy(favorite = !t.favorite) else it }
         }
     }
 }

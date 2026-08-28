@@ -48,6 +48,10 @@ class BookRepository(private val db: AppDatabase) {
 
     suspend fun favorites(): List<ThreadEntity> = db.threadDao().favorites(source.id)
 
+    suspend fun categoryCount(category: String): Int =
+        if (category.isEmpty()) db.threadDao().totalCount(source.id)
+        else db.threadDao().countByCategory(source.id, category)
+
     suspend fun search(q: String): List<ThreadEntity> =
         if (q.isBlank()) db.threadDao().favorites(source.id) else db.threadDao().search(source.id, "%$q%")
 

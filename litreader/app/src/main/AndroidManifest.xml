@@ -28,5 +28,7 @@
             </intent-filter>
         </activity>
         <activity android:name=".ui.detail.ThreadDetailActivity" />
+        <activity android:name=".ui.fav.FavoritesActivity" />
+        <activity android:name=".ui.search.SearchActivity" />
     </application>
 </manifest>

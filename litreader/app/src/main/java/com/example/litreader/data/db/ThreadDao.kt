@@ -30,6 +30,9 @@ interface ThreadDao {
 
     @Query("SELECT COUNT(*) FROM threads WHERE sourceId = :sourceId AND category = :category")
     suspend fun countByCategory(sourceId: String, category: String): Int
+
+    @Query("SELECT COUNT(*) FROM threads WHERE sourceId = :sourceId")
+    suspend fun totalCount(sourceId: String): Int
 }
 
 @Dao
