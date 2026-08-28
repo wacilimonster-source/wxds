@@ -1,6 +1,5 @@
 package com.example.litreader.util
 
-import android.app.Activity
 import androidx.activity.ComponentActivity
 import android.app.DownloadManager
 import android.content.Context
@@ -16,11 +15,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONObject
+import org.json.JSONArray
 import java.util.concurrent.TimeUnit
 
 object UpdateManager {
-    private const val GITHUB_API = "https://api.github.com/repos/wacilimonster-source/wxds/releases/latest"
+    private const val REPO = "wacilimonster-source/wxds"
+    private const val CONTENTS_API = "https://api.github.com/repos/$REPO/contents/"
+    private val APK_NAME = Regex("""^litreader-v(\d+)\.(\d+)(?:\.(\d+))?\.apk$""")
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -28,23 +29,20 @@ object UpdateManager {
         .build()
 
     data class ReleaseInfo(
-        val tagName: String,
         val versionName: String,
         val versionCode: Int,
-        val downloadUrl: String,
-        val body: String
+        val downloadUrl: String
     )
 
     @Suppress("UNUSED_PARAMETER")
     fun checkAndPromptUpdate(activity: ComponentActivity, scope: CoroutineScope, silent: Boolean = false) {
         scope.launch {
-            val currentCode = Constants.VERSION_CODE
-            val info = fetchLatestRelease()
+            val info = fetchLatestApk()
             if (info == null) {
                 if (!silent) showToast(activity, "检查更新失败")
                 return@launch
             }
-            if (info.versionCode > currentCode) {
+            if (info.versionCode > parseVersionCode(Constants.VERSION_NAME)) {
                 showUpdateDialog(activity, info)
             } else if (!silent) {
                 showToast(activity, "已是最新版")
@@ -52,32 +50,32 @@ object UpdateManager {
         }
     }
 
-    private suspend fun fetchLatestRelease(): ReleaseInfo? = withContext(Dispatchers.IO) {
+    /** 扫描仓库根目录的 litreader-vX.Y[.Z].apk，取版本号最高的一个（不依赖 GitHub Releases）。 */
+    private suspend fun fetchLatestApk(): ReleaseInfo? = withContext(Dispatchers.IO) {
         try {
             val req = Request.Builder()
-                .url(GITHUB_API)
+                .url(CONTENTS_API)
                 .header("Accept", "application/vnd.github.v3+json")
                 .header("User-Agent", "LitReader-UpdateChecker")
                 .build()
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return@withContext null
-                val json = JSONObject(resp.body?.string() ?: "")
-                val tagName = json.getString("tag_name")
-                val body = json.getString("body")
-                val assets = json.getJSONArray("assets")
-                var apkUrl = ""
-                for (i in 0 until assets.length()) {
-                    val asset = assets.getJSONObject(i)
-                    val name = asset.getString("name")
-                    if (name.endsWith(".apk")) {
-                        apkUrl = asset.getString("browser_download_url")
-                        break
+                val arr = JSONArray(resp.body?.string() ?: "[]")
+                var best: ReleaseInfo? = null
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    val name = obj.optString("name")
+                    val m = APK_NAME.find(name) ?: continue
+                    val major = m.groupValues[1].toInt()
+                    val minor = m.groupValues[2].toInt()
+                    val patch = m.groupValues[3].ifEmpty { "0" }.toInt()
+                    val code = major * 10000 + minor * 100 + patch
+                    val url = obj.optString("download_url")
+                    if (url.isNotEmpty() && (best == null || code > best!!.versionCode)) {
+                        best = ReleaseInfo("$major.$minor.$patch", code, url)
                     }
                 }
-                if (apkUrl.isEmpty()) return@withContext null
-                val versionName = tagName.removePrefix("v")
-                val versionCode = parseVersionCode(versionName)
-                ReleaseInfo(tagName, versionName, versionCode, apkUrl, body)
+                best
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -86,17 +84,17 @@ object UpdateManager {
     }
 
     private fun parseVersionCode(versionName: String): Int {
-        try {
+        return try {
             val parts = versionName.split(".").map { it.toInt() }
-            return (parts.getOrNull(0) ?: 1) * 10000 + (parts.getOrNull(1) ?: 0) * 100 + (parts.getOrNull(2) ?: 0)
+            (parts.getOrNull(0) ?: 0) * 10000 + (parts.getOrNull(1) ?: 0) * 100 + (parts.getOrNull(2) ?: 0)
         } catch (e: Exception) {
-            return 1
+            0
         }
     }
 
     private fun showUpdateDialog(activity: ComponentActivity, info: ReleaseInfo) {
         activity.runOnUiThread {
-            val msg = "发现新版本 ${info.versionName}\n${info.body}"
+            val msg = "发现新版本 ${info.versionName}，是否下载安装？"
             androidx.appcompat.app.AlertDialog.Builder(activity)
                 .setTitle("有可用更新")
                 .setMessage(msg)

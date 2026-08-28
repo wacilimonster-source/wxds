@@ -24,3 +24,6 @@ Thumbs.db
 # Temp
 *.tmp
 *.log
+# Agent workspace meta
+.openclaw/
+memory/
