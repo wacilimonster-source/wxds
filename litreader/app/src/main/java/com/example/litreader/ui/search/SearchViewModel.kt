@@ -24,9 +24,7 @@ class SearchViewModel(private val repo: BookRepository) : ViewModel() {
             catch (e: Exception) { _threads.value = emptyList() }
             finally { _loading.value = false }
         }
-    }
-
-    fun toggleFavorite(t: ThreadEntity) {
+    }    fun toggleFavorite(t: ThreadEntity) {
         viewModelScope.launch {
             repo.setFavorite(t.tid, !t.favorite)
             val cur = _threads.value ?: return@launch

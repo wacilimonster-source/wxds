@@ -7,7 +7,7 @@ import com.example.litreader.data.repo.BookRepository
 import kotlinx.coroutines.launch
 import kotlin.math.ceil
 
-class ThreadListViewModel(private val repo: BookRepository) : ViewModel() {
+class ThreadListViewModel(private val repo: BookRepository, private val sourceId: String) : ViewModel() {
     private val _threads = MutableLiveData<List<ThreadEntity>>()
     val threads: LiveData<List<ThreadEntity>> = _threads
 
@@ -32,9 +32,9 @@ class ThreadListViewModel(private val repo: BookRepository) : ViewModel() {
         _loading.value = true
         viewModelScope.launch {
             try {
-                val list = repo.page(page, BookRepository.PAGE_SIZE, category, false)
+                val list = repo.page(sourceId, page, BookRepository.PAGE_SIZE, category, false)
                 _threads.value = list
-                totalCount = repo.categoryCount(category)
+                totalCount = repo.categoryCount(sourceId, category)
                 _error.value = if (list.isEmpty() && page == 1 && !reloading) "暂无数据" else null
             } catch (e: Exception) {
                 _error.value = "加载失败：${e.message ?: "网络错误"}"
@@ -63,6 +63,7 @@ class ThreadListViewModel(private val repo: BookRepository) : ViewModel() {
     }
 }
 
-class ThreadListVmFactory(private val db: AppDatabase) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(m: Class<T>): T = ThreadListViewModel(BookRepository(db)) as T
+class ThreadListVmFactory(private val db: AppDatabase, private val sourceId: String) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(m: Class<T>): T =
+        ThreadListViewModel(BookRepository(db), sourceId) as T
 }

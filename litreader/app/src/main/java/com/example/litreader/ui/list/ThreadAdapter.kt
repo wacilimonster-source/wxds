@@ -6,11 +6,14 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.example.litreader.data.db.ThreadEntity
+import com.example.litreader.data.source.SourceRegistry
 import com.example.litreader.databinding.ItemThreadBinding
 
 class ThreadAdapter(
     private val onClick: (ThreadEntity) -> Unit,
-    private val onLongClick: (ThreadEntity) -> Unit
+    private val onLongClick: (ThreadEntity) -> Unit,
+    /** 搜索结果等跨区场景下，在条目里标注所属区 */
+    private val showSection: Boolean = false
 ) : RecyclerView.Adapter<ThreadAdapter.VH>() {
 
     private var data = listOf<ThreadEntity>()
@@ -44,7 +47,15 @@ class ThreadAdapter(
         val t = data[i]
         h.b.tvTitle.text = t.title
 
-        if (t.tag.isEmpty()) {
+        if (showSection) {
+            val section = SourceRegistry.get(t.sourceId)?.shortName ?: ""
+            if (section.isNotEmpty()) {
+                h.b.tvTag.visibility = View.VISIBLE
+                h.b.tvTag.text = section
+            } else {
+                h.b.tvTag.visibility = View.GONE
+            }
+        } else if (t.tag.isEmpty()) {
             h.b.tvTag.visibility = View.GONE
         } else {
             h.b.tvTag.visibility = View.VISIBLE
@@ -53,6 +64,7 @@ class ThreadAdapter(
 
         val meta = mutableListOf(t.author)
         if (t.dateText.isNotEmpty()) meta += t.dateText
+        if (t.replies.isNotEmpty()) meta += "${t.replies}回"
         h.b.tvMeta.text = meta.joinToString(" · ")
 
         h.b.imgFav.visibility = if (t.favorite) View.VISIBLE else View.GONE

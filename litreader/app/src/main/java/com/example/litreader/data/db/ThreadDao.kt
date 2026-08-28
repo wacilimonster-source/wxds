@@ -19,8 +19,17 @@ interface ThreadDao {
     @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND favorite = 1 ORDER BY timestamp DESC")
     suspend fun favorites(sourceId: String): List<ThreadEntity>
 
+    @Query("SELECT * FROM threads WHERE favorite = 1 ORDER BY timestamp DESC")
+    suspend fun favoritesAll(): List<ThreadEntity>
+
     @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND title LIKE :q ORDER BY timestamp DESC")
     suspend fun search(sourceId: String, q: String): List<ThreadEntity>
+
+    @Query("SELECT * FROM threads WHERE title LIKE :q ORDER BY timestamp DESC")
+    suspend fun searchAll(q: String): List<ThreadEntity>
+
+    @Query("SELECT * FROM threads WHERE tid = :tid")
+    suspend fun byId(tid: String): ThreadEntity?
 
     @Query("UPDATE threads SET favorite = :fav WHERE tid = :tid")
     suspend fun setFavorite(tid: String, fav: Boolean)

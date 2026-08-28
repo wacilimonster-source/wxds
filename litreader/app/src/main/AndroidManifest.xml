@@ -2,13 +2,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28"
+        tools:node="replace" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"
         tools:node="replace" />
     <application
         android:name=".App"
         android:allowBackup="true"
         android:usesCleartextTraffic="true"
-        android:label="LitReader"
+        android:label="纸墨"
         android:theme="@style/Theme.LitReader">
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -20,7 +24,7 @@
                 android:resource="@xml/file_paths" />
         </provider>
         <activity
-            android:name=".ui.list.ThreadListActivity"
+            android:name=".ui.main.MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -28,7 +32,7 @@
             </intent-filter>
         </activity>
         <activity android:name=".ui.detail.ThreadDetailActivity" />
-        <activity android:name=".ui.fav.FavoritesActivity" />
+        <activity android:name=".ui.gallery.GalleryActivity" />
         <activity android:name=".ui.search.SearchActivity" />
     </application>
 </manifest>

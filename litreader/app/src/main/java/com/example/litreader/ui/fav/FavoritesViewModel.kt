@@ -13,10 +13,18 @@ class FavoritesViewModel(private val repo: BookRepository) : ViewModel() {
     private val _loading = MutableLiveData(false)
     val loading: LiveData<Boolean> = _loading
 
+    /** null = 全部区；否则为 sourceId。 */
+    var filter: String? = null
+
+    fun applyFilter(f: String?) {
+        filter = f
+        load()
+    }
+
     fun load() {
         _loading.value = true
         viewModelScope.launch {
-            try { _threads.value = repo.favorites() }
+            try { _threads.value = repo.favorites(filter) }
             catch (_: Exception) {}
             finally { _loading.value = false }
         }

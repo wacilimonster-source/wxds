@@ -12,4 +12,8 @@
     <color name="divider">#EAE2D6</color>
     <color name="catTextSelected">#FFFFFF</color>
     <color name="catTextNormal">#9A4A36</color>
+    <!-- 画廊固定深色（不随日夜切换） -->
+    <color name="galleryBg">#000000</color>
+    <color name="galleryOnDark">#EDE5D8</color>
+    <color name="gallerySubtle">#A3988A</color>
 </resources>

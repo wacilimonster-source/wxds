@@ -29,7 +29,7 @@ class SearchActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
         vm = ViewModelProvider(this, SearchVmFactory((application as App).database))[SearchViewModel::class.java]
-        adapter = ThreadAdapter({ open(it) }, { vm.toggleFavorite(it) })
+        adapter = ThreadAdapter({ open(it) }, { vm.toggleFavorite(it) }, showSection = true)
         bind.recycler.layoutManager = LinearLayoutManager(this)
         bind.recycler.adapter = adapter
 
@@ -65,6 +65,7 @@ class SearchActivity : AppCompatActivity() {
             putExtra("tid", t.tid)
             putExtra("title", t.title)
             putExtra("favorite", t.favorite)
+            putExtra("sourceId", t.sourceId)
         })
     }
 

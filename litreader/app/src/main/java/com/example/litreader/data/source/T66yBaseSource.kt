@@ -10,23 +10,14 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import java.io.ByteArrayInputStream
 
-class T66ySource : BookSource {
-    override val id = "t66y"
-    override val name = "草榴文学区"
+/**
+ * t66y 各版块（thread0806.php）的公共解析逻辑。
+ * 实测 fid=20（文学）与 fid=16（达盖尔贴图）列表行结构一致：
+ * #ajaxtable tr.tr3 + h3 a[id^=t]，五列为 贊/文章/作者/回復/最後發表。
+ */
+abstract class T66yBaseSource : BookSource {
 
-    override val categories = listOf(
-        "" to "全部",
-        "1" to "現代奇幻",
-        "2" to "古典武俠",
-        "3" to "另類禁忌",
-        "4" to "性愛技巧",
-        "5" to "笑話連篇",
-        "6" to "有声小说",
-        "12" to "其他交流"
-    )
-
-    private val base = "https://www.t66y.com"
-    private val fid = "20"
+    protected val base = "https://www.t66y.com"
 
     override suspend fun getList(page: Int, category: String): List<ThreadItem> =
         withContext(Dispatchers.IO) {
@@ -36,22 +27,24 @@ class T66ySource : BookSource {
             val rows = doc.select("#ajaxtable tr.tr3")
             val items = ArrayList<ThreadItem>()
             for (tr in rows) {
-                val item = parseRow(tr, category) ?: continue
-                items.add(item)
+                parseRow(tr, category)?.let { items.add(it) }
             }
             items
         }
 
-    private fun parseRow(tr: Element, category: String): ThreadItem? {
+    protected open fun parseRow(tr: Element, category: String): ThreadItem? {
         val a = tr.selectFirst("h3 a[id^=t]") ?: return null
         val tid = a.attr("id").removePrefix("t")
         val titleCell = tr.selectFirst("td.tal")
         val tag = titleCell?.let { c ->
             val clone = c.clone()
             clone.select("h3, span.thread_page, span.mark_gen, div.f12, div.s5").remove()
-            clone.ownText().trim()
+            // 标题旁的 ↑N 推荐数不属于版块标签，剔除
+            clone.ownText().replace(Regex("↑\\s*\\d+"), "").trim()
         } ?: ""
+        val tds = tr.select("td")
         val likes = tr.selectFirst("td span.sred, td span.s3, td span.b")?.text()?.trim() ?: ""
+        val replies = if (tds.size > 3) tds[3].text().trim() else ""
         val last = tr.selectFirst("a.f10")
         val author = last?.parent()?.ownText()?.trim() ?: ""
         val ts = last?.attr("data-timestamp")?.toLongOrNull() ?: 0L
@@ -65,10 +58,12 @@ class T66ySource : BookSource {
             href = a.attr("href"),
             category = category,
             tag = tag,
-            likes = likes
+            likes = likes,
+            replies = replies
         )
     }
 
+    /** 详情统一走 read.php（列表里的 htm_data 静态页路径不可推算，直接访问会 404）。 */
     override suspend fun getThread(tid: String, onlyOp: Boolean): List<Post> =
         withContext(Dispatchers.IO) {
             val toread = if (onlyOp) "&toread=2" else "&toread=1"
@@ -104,7 +99,7 @@ class T66ySource : BookSource {
     }
 
     /** 站点图片是 ess-data 懒加载、无 src；离线渲染前把真实地址补到 src。 */
-    private fun fixLazyImages(el: Element) {
+    protected fun fixLazyImages(el: Element) {
         el.select("img").forEach { img ->
             val src = img.attr("src").trim()
             if (src.isEmpty() || src.startsWith("data:")) {

@@ -12,4 +12,8 @@
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowBackground">@color/bgPaper</item>
     </style>
+
+    <style name="NavIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">@color/accentSoft</item>
+    </style>
 </resources>

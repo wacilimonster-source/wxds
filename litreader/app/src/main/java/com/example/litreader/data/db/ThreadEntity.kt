@@ -15,5 +15,6 @@ data class ThreadEntity(
     val category: String,
     val tag: String = "",
     val likes: String = "",
+    val replies: String = "",
     val favorite: Boolean = false
 )

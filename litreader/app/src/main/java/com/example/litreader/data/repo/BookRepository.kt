@@ -7,15 +7,17 @@ import com.example.litreader.data.model.Post
 import com.example.litreader.data.source.SourceRegistry
 
 class BookRepository(private val db: AppDatabase) {
-    private val source = SourceRegistry.get("t66y")!!
+
+    private fun source(id: String) = SourceRegistry.get(id) ?: SourceRegistry.first()
 
     /** 在线拉取一页列表并入库（按当前分类存放）。 */
-    suspend fun loadList(page: Int, category: String = ""): List<ThreadEntity> {
-        val items = source.getList(page, category)
+    suspend fun loadList(sourceId: String, page: Int, category: String = ""): List<ThreadEntity> {
+        val src = source(sourceId)
+        val items = src.getList(page, category)
         val ents = items.map {
             ThreadEntity(
                 tid = it.tid,
-                sourceId = source.id,
+                sourceId = src.id,
                 title = it.title,
                 author = it.author,
                 timestamp = it.timestamp,
@@ -23,7 +25,8 @@ class BookRepository(private val db: AppDatabase) {
                 href = it.href,
                 category = category,
                 tag = it.tag,
-                likes = it.likes
+                likes = it.likes,
+                replies = it.replies
             )
         }
         db.threadDao().upsertAll(ents)
@@ -31,42 +34,53 @@ class BookRepository(private val db: AppDatabase) {
     }
 
     /** 本地分页（秒开）；条目不足时自动在线补页。 */
-    suspend fun page(page: Int, pageSize: Int, category: String, onlyFavorite: Boolean): List<ThreadEntity> {
-        val local = db.threadDao().page(source.id, category, pageSize, (page - 1) * pageSize)
+    suspend fun page(
+        sourceId: String,
+        page: Int,
+        pageSize: Int,
+        category: String,
+        onlyFavorite: Boolean
+    ): List<ThreadEntity> {
+        val local = db.threadDao().page(sourceId, category, pageSize, (page - 1) * pageSize)
         if (onlyFavorite) return local
         if (local.size >= pageSize || page > 1) return local
         // 第一页且本地不足：预取几页做底量
-        var fetched = 0
         var acc = emptyList<ThreadEntity>()
         for (p in 1..PREFETCH_PAGES) {
-            acc = acc + loadList(p, category)
+            acc = acc + loadList(sourceId, p, category)
             if (acc.size >= pageSize) break
         }
-        fetched = acc.size
-        return if (fetched > 0) db.threadDao().page(source.id, category, pageSize, 0) else local
+        return if (acc.isNotEmpty()) db.threadDao().page(sourceId, category, pageSize, 0) else local
     }
 
-    suspend fun favorites(): List<ThreadEntity> = db.threadDao().favorites(source.id)
+    /** filter 为 null 时返回全部区收藏。 */
+    suspend fun favorites(filter: String?): List<ThreadEntity> =
+        if (filter == null) db.threadDao().favoritesAll()
+        else db.threadDao().favorites(filter)
 
-    suspend fun categoryCount(category: String): Int =
-        if (category.isEmpty()) db.threadDao().totalCount(source.id)
-        else db.threadDao().countByCategory(source.id, category)
+    suspend fun categoryCount(sourceId: String, category: String): Int =
+        if (category.isEmpty()) db.threadDao().totalCount(sourceId)
+        else db.threadDao().countByCategory(sourceId, category)
 
+    /** 跨区本地搜索（搜的是已缓存进库的标题）。 */
     suspend fun search(q: String): List<ThreadEntity> =
-        if (q.isBlank()) db.threadDao().favorites(source.id) else db.threadDao().search(source.id, "%$q%")
+        db.threadDao().searchAll("%$q%")
 
     suspend fun setFavorite(tid: String, fav: Boolean) = db.threadDao().setFavorite(tid, fav)
 
     suspend fun isFavorite(tid: String): Boolean = db.threadDao().isFavorite(tid) ?: false
 
+    /** 帖子属于哪个区（详情页兜底用）。 */
+    suspend fun threadSourceId(tid: String): String? = db.threadDao().byId(tid)?.sourceId
+
     /** 正文：先读缓存（离线可看），没有才在线抓并写缓存。 */
-    suspend fun getThread(tid: String, onlyOp: Boolean): Pair<List<Post>, Boolean> {
+    suspend fun getThread(sourceId: String, tid: String, onlyOp: Boolean): Pair<List<Post>, Boolean> {
         val cached = db.threadContentDao().get(tid, onlyOp)
         if (cached != null) {
             val cachedPosts = runCatching { decodePosts(cached.html) }.getOrNull()
             if (cachedPosts != null) return cachedPosts to true
         }
-        val posts = source.getThread(tid, onlyOp)
+        val posts = source(sourceId).getThread(tid, onlyOp)
         db.threadContentDao().upsert(ThreadContentEntity(tid, onlyOp, encodePosts(posts), System.currentTimeMillis()))
         return posts to false
     }

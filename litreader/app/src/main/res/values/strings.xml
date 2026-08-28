@@ -2,16 +2,19 @@
 <resources>
     <string name="app_title">纸墨书房</string>
     <string name="search">搜索</string>
-    <string name="search_hint">在缓存中搜索标题…</string>
+    <string name="search_hint">搜索已缓存的帖子标题…</string>
     <string name="favorites">收藏</string>
     <string name="check_update">检查更新</string>
+    <string name="more">更多</string>
     <string name="prev_page">上一页</string>
     <string name="next_page">下一页</string>
     <string name="refresh">刷新</string>
     <string name="empty_title">书架暂时是空的</string>
     <string name="empty_hint">下拉刷新，或点右下角「刷新」拉取最新书单</string>
+    <string name="empty_gallery_title">画册暂时是空的</string>
+    <string name="empty_gallery_hint">下拉刷新，或点右下角「刷新」拉取最新帖子</string>
     <string name="empty_fav_title">收藏夹还是空的</string>
-    <string name="empty_fav_hint">在书单里长按帖子即可收藏</string>
+    <string name="empty_fav_hint">在列表里长按帖子即可收藏</string>
     <string name="only_op">只看楼主</string>
     <string name="see_all">看全部</string>
     <string name="font_up">放大字号</string>
@@ -20,4 +23,20 @@
     <string name="floor_prev">上一页楼层</string>
     <string name="floor_next">下一页楼层</string>
     <string name="back">返回</string>
+
+    <string name="tab_lit">文学</string>
+    <string name="tab_img">贴图</string>
+    <string name="tab_fav">收藏</string>
+    <string name="favorites_title">收藏夹</string>
+    <string name="filter_all">全部</string>
+
+    <string name="save_image">保存</string>
+    <string name="share_image">分享</string>
+    <string name="save_done">已保存到相册</string>
+    <string name="save_failed">保存失败</string>
+    <string name="save_need_permission">需要存储权限才能保存图片</string>
+    <string name="share_failed">分享失败</string>
+    <string name="gallery_empty">帖子里没有图片</string>
+    <string name="gallery_counter">%1$d / %2$d</string>
+    <string name="image_load_failed">图片加载失败</string>
 </resources>
