@@ -15,13 +15,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONArray
 import java.util.concurrent.TimeUnit
 
 object UpdateManager {
     private const val REPO = "wacilimonster-source/wxds"
-    private const val CONTENTS_API = "https://api.github.com/repos/$REPO/contents/"
-    private val APK_NAME = Regex("""^litreader-v(\d+)\.(\d+)(?:\.(\d+))?\.apk$""")
+    private const val VERSION_URL = "https://raw.githubusercontent.com/$REPO/master/latest.json"
+    private const val RAW_BASE = "https://raw.githubusercontent.com/$REPO/master/"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -50,32 +49,20 @@ object UpdateManager {
         }
     }
 
-    /** 扫描仓库根目录的 litreader-vX.Y[.Z].apk，取版本号最高的一个（不依赖 GitHub Releases）。 */
+    /** 读仓库根目录 latest.json（raw 直链，无 API 限额），拿到最新版本与 APK 文件名。 */
     private suspend fun fetchLatestApk(): ReleaseInfo? = withContext(Dispatchers.IO) {
         try {
             val req = Request.Builder()
-                .url(CONTENTS_API)
-                .header("Accept", "application/vnd.github.v3+json")
+                .url(VERSION_URL)
                 .header("User-Agent", "LitReader-UpdateChecker")
                 .build()
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return@withContext null
-                val arr = JSONArray(resp.body?.string() ?: "[]")
-                var best: ReleaseInfo? = null
-                for (i in 0 until arr.length()) {
-                    val obj = arr.getJSONObject(i)
-                    val name = obj.optString("name")
-                    val m = APK_NAME.find(name) ?: continue
-                    val major = m.groupValues[1].toInt()
-                    val minor = m.groupValues[2].toInt()
-                    val patch = m.groupValues[3].ifEmpty { "0" }.toInt()
-                    val code = major * 10000 + minor * 100 + patch
-                    val url = obj.optString("download_url")
-                    if (url.isNotEmpty() && (best == null || code > best!!.versionCode)) {
-                        best = ReleaseInfo("$major.$minor.$patch", code, url)
-                    }
-                }
-                best
+                val json = org.json.JSONObject(resp.body?.string() ?: "")
+                val versionName = json.optString("versionName")
+                val apk = json.optString("apk")
+                if (versionName.isEmpty() || apk.isEmpty()) return@withContext null
+                ReleaseInfo(versionName, parseVersionCode(versionName), RAW_BASE + apk)
             }
         } catch (e: Exception) {
             e.printStackTrace()
