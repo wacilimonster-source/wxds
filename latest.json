@@ -1,1 +1,1 @@
-{"versionName": "0.11.0", "apk": "litreader-v0.11.apk"}
+{"versionName": "0.12.0", "apk": "litreader-v0.12.apk", "notes": "· 更新对话框显示更新说明，APK 下载增加百分比进度\n· 阅读器新增「自动读完」开关：翻到最后一页自动标记已读完（默认关）\n· 版本检查防缓存加固"}

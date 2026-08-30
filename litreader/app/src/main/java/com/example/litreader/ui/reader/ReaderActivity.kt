@@ -85,6 +85,9 @@ class ReaderActivity : AppCompatActivity() {
     private var floorMarks: Boolean
         get() = prefs2.getBoolean("marks", true)
         set(value) = prefs2.edit().putBoolean("marks", value).apply()
+    private var autoFinish: Boolean
+        get() = prefs2.getBoolean("autoFinish", false)
+        set(value) = prefs2.edit().putBoolean("autoFinish", value).apply()
 
     private val theme get() = themes[themeIdx]
     private val lineSpacing get() = lineSpacings[lineIdx]
@@ -247,8 +250,13 @@ class ReaderActivity : AppCompatActivity() {
         bind.scrollWrap.visibility = View.GONE
 
         bind.pager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
-            override fun onPageSelected(position: Int) = updatePageLabel()
+            override fun onPageSelected(position: Int) {
+                updatePageLabel()
+                maybeAutoFinish()
+            }
         })
+
+        bind.scrollWrap.setOnScrollChangeListener { _, _, _, _, _ -> maybeAutoFinish() }
 
         bind.seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
@@ -334,6 +342,10 @@ class ReaderActivity : AppCompatActivity() {
             renderMarksLabel()
             rebuild()
         }
+        bind.btnAutoFinish.setOnClickListener {
+            autoFinish = !autoFinish
+            renderAutoFinishLabel()
+        }
         bind.btnFloorJump.setOnClickListener { showFloorJump() }
         bind.btnForum.setOnClickListener { goForum() }
         bind.btnFinished.setOnClickListener {
@@ -345,6 +357,7 @@ class ReaderActivity : AppCompatActivity() {
         renderFav()
         renderFlipLabel()
         renderMarksLabel()
+        renderAutoFinishLabel()
         renderFinishedLabel()
         bind.btnLine.text = getString(R.string.reader_line, trim(lineSpacing))
         bind.btnTheme.text = getString(R.string.reader_theme, theme.label)
@@ -453,6 +466,29 @@ class ReaderActivity : AppCompatActivity() {
         bind.btnFinished.text = getString(
             if (finished) R.string.reader_finished else R.string.reader_finish_mark
         )
+    }
+
+    private fun renderAutoFinishLabel() {
+        bind.btnAutoFinish.text = getString(
+            R.string.reader_auto, getString(if (autoFinish) R.string.on else R.string.off)
+        )
+    }
+
+    /** 自动读完：翻/滚到最后一页且开关打开时标记已读完（仅一次，toast 提示）。 */
+    private fun maybeAutoFinish() {
+        if (!autoFinish || !loaded || finished) return
+        val atEnd = if (flipMode) {
+            pages.isNotEmpty() && bind.pager.currentItem == pages.size - 1
+        } else {
+            val h = max(1, bind.scrollText.height - bind.scrollWrap.height)
+            bind.scrollWrap.scrollY >= h - dp(40)
+        }
+        if (atEnd) {
+            finished = true
+            lifecycleScope.launch { repo.setFinished(tid, true) }
+            renderFinishedLabel()
+            toast(getString(R.string.reader_auto_finished))
+        }
     }
 
     private fun showError(msg: String) {

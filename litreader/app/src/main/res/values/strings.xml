@@ -49,6 +49,8 @@
 
     <string name="reader_finish_mark">读完</string>
     <string name="reader_finished">已读完</string>
+    <string name="reader_auto">自动读完 %1$s</string>
+    <string name="reader_auto_finished">已标记已读完</string>
 
     <string name="jump_page">跳转到页（共 %1$d 页）</string>
     <string name="jump_go">跳转</string>
