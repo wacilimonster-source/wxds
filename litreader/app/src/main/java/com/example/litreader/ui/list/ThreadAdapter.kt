@@ -3,8 +3,10 @@ package com.example.litreader.ui.list
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
+import com.example.litreader.R
 import com.example.litreader.data.db.ThreadEntity
 import com.example.litreader.data.source.SourceRegistry
 import com.example.litreader.databinding.ItemThreadBinding
@@ -66,6 +68,27 @@ class ThreadAdapter(
         if (t.dateText.isNotEmpty()) meta += t.dateText
         if (t.replies.isNotEmpty()) meta += "${t.replies}回"
         h.b.tvMeta.text = meta.joinToString(" · ")
+
+        // 已读/已读完视觉标识：已读完标题置灰 + 朱砂「已读完」，已读显示灰「已读」
+        val ctx = h.b.root.context
+        when (t.readState) {
+            2 -> {
+                h.b.tvReadMark.visibility = View.VISIBLE
+                h.b.tvReadMark.text = ctx.getString(R.string.filter_finished)
+                h.b.tvReadMark.setTextColor(ContextCompat.getColor(ctx, R.color.accent))
+                h.b.tvTitle.setTextColor(ContextCompat.getColor(ctx, R.color.inkSecondary))
+            }
+            1 -> {
+                h.b.tvReadMark.visibility = View.VISIBLE
+                h.b.tvReadMark.text = ctx.getString(R.string.filter_read)
+                h.b.tvReadMark.setTextColor(ContextCompat.getColor(ctx, R.color.inkSecondary))
+                h.b.tvTitle.setTextColor(ContextCompat.getColor(ctx, R.color.inkPrimary))
+            }
+            else -> {
+                h.b.tvReadMark.visibility = View.GONE
+                h.b.tvTitle.setTextColor(ContextCompat.getColor(ctx, R.color.inkPrimary))
+            }
+        }
 
         h.b.imgFav.visibility = if (t.favorite) View.VISIBLE else View.GONE
 
