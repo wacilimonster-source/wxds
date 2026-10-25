@@ -63,6 +63,10 @@
     <string name="reader_theme">主题 %1$s</string>
     <string name="reader_flip">翻页 %1$s</string>
     <string name="reader_marks">标记 %1$s</string>
+    <string name="reader_pad">边距 %1$s</string>
+    <string name="reader_pad_tight">紧凑</string>
+    <string name="reader_pad_normal">标准</string>
+    <string name="reader_pad_loose">宽松</string>
     <string name="reader_flip_lr">左右</string>
     <string name="reader_scroll">滚动</string>
     <string name="reader_scroll_pos">滚动模式</string>

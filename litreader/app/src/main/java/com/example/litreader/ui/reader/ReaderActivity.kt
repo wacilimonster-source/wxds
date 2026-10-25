@@ -69,6 +69,13 @@ class ReaderActivity : AppCompatActivity() {
     private val themes = ReaderThemeSet.values()
     private val lineSpacings = floatArrayOf(1.6f, 1.9f, 2.2f)
 
+    /** 正文边距预设：top, bottom, left, right（dp）。分页与绘制必须用同一组值。 */
+    private val padPresets = arrayOf(
+        intArrayOf(16, 36, 12, 12),  // 紧凑
+        intArrayOf(30, 48, 22, 22),  // 标准（默认）
+        intArrayOf(48, 64, 32, 32),  // 宽松
+    )
+
     private val prefs2 by lazy { getSharedPreferences("reader2", MODE_PRIVATE) }
     private val fontPrefs by lazy { getSharedPreferences("reader", MODE_PRIVATE) }
     private val posPrefs by lazy { getSharedPreferences("reader_pos", MODE_PRIVATE) }
@@ -88,9 +95,13 @@ class ReaderActivity : AppCompatActivity() {
     private var autoFinish: Boolean
         get() = prefs2.getBoolean("autoFinish", false)
         set(value) = prefs2.edit().putBoolean("autoFinish", value).apply()
+    private var padIdx: Int
+        get() = prefs2.getInt("pad", 1).coerceIn(0, padPresets.size - 1)
+        set(value) = prefs2.edit().putInt("pad", value).apply()
 
     private val theme get() = themes[themeIdx]
     private val lineSpacing get() = lineSpacings[lineIdx]
+    private val pads get() = padPresets[padIdx].map { dp(it) }  // px: top, bottom, left, right
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -148,8 +159,8 @@ class ReaderActivity : AppCompatActivity() {
 
     // ---------- 排版与分页 ----------
 
-    private fun contentWidth(): Int = max(100, bind.content.width - dp(44))
-    private fun contentHeight(): Int = max(100, bind.content.height - dp(70))
+    private fun contentWidth(): Int = max(100, bind.content.width - pads[2] - pads[3])
+    private fun contentHeight(): Int = max(100, bind.content.height - pads[0] - pads[1])
 
     private fun makeLayout(text: CharSequence, width: Int): StaticLayout =
         StaticLayout.Builder.obtain(text, 0, text.length, textPaint(), width)
@@ -180,7 +191,12 @@ class ReaderActivity : AppCompatActivity() {
     private fun setupFlip(restoreOffset: Int) {
         bind.pager.visibility = View.VISIBLE
         bind.scrollWrap.visibility = View.GONE
-        layout?.let { bind.pager.adapter = PagesAdapter(it, pages, pageCallbacks) { dp(it) } }
+        layout?.let {
+            bind.pager.adapter = PagesAdapter(
+                it, pages, pageCallbacks,
+                intArrayOf(pads[2], pads[0], pads[3], pads[1])  // l, t, r, b
+            )
+        }
         bind.pager.post {
             jumpToOffset(restoreOffset)
             saveProgress()
@@ -194,6 +210,7 @@ class ReaderActivity : AppCompatActivity() {
         bind.scrollText.textSize = fontSp().toFloat()
         bind.scrollText.setLineSpacing(0f, lineSpacing)
         bind.scrollText.setTextColor(theme.fg)
+        bind.scrollText.setPadding(pads[2], pads[0], pads[3], pads[1])
         bind.scrollWrap.post {
             if (restoreProgress && !restoredOnce) {
                 val ratio = savedRatio()
@@ -331,6 +348,11 @@ class ReaderActivity : AppCompatActivity() {
             bind.btnTheme.text = getString(R.string.reader_theme, theme.label)
             rebuild()
         }
+        bind.btnPad.setOnClickListener {
+            padIdx = (padIdx + 1) % padPresets.size
+            renderPadLabel()
+            rebuild()
+        }
         bind.btnFlip.setOnClickListener {
             val cur = currentOffset()
             flipMode = !flipMode
@@ -361,6 +383,7 @@ class ReaderActivity : AppCompatActivity() {
         renderFinishedLabel()
         bind.btnLine.text = getString(R.string.reader_line, trim(lineSpacing))
         bind.btnTheme.text = getString(R.string.reader_theme, theme.label)
+        renderPadLabel()
         bind.tvFont.text = "${fontSp()}"
     }
 
@@ -456,6 +479,17 @@ class ReaderActivity : AppCompatActivity() {
         )
     }
 
+    private fun renderPadLabel() {
+        val label = getString(
+            when (padIdx) {
+                0 -> R.string.reader_pad_tight
+                1 -> R.string.reader_pad_normal
+                else -> R.string.reader_pad_loose
+            }
+        )
+        bind.btnPad.text = getString(R.string.reader_pad, label)
+    }
+
     private fun renderMarksLabel() {
         bind.btnMarks.text = getString(
             R.string.reader_marks, getString(if (floorMarks) R.string.on else R.string.off)
@@ -546,7 +580,7 @@ class ReaderActivity : AppCompatActivity() {
         private val layout: StaticLayout,
         private val pages: List<Paginator.Page>,
         private val callbacks: PageView.Callbacks,
-        private val dpPx: (Int) -> Int
+        private val padsPx: IntArray  // l, t, r, b
     ) : RecyclerView.Adapter<PagesAdapter.PVH>() {
 
         class PVH(val view: PageView) : RecyclerView.ViewHolder(view)
@@ -556,7 +590,7 @@ class ReaderActivity : AppCompatActivity() {
                 layoutParams = RecyclerView.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
                 )
-                setPadding(dpPx(22), dpPx(26), dpPx(22), dpPx(44))
+                setPadding(padsPx[0], padsPx[1], padsPx[2], padsPx[3])
                 callbacks = this@PagesAdapter.callbacks
             }
             return PVH(view)

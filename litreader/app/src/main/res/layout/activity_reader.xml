@@ -218,6 +218,9 @@
             <TextView
                 android:id="@+id/btnAutoFinish"
                 style="@style/ReaderMenuItem" />
+            <TextView
+                android:id="@+id/btnPad"
+                style="@style/ReaderMenuItem" />
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>
