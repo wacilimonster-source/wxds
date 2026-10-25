@@ -1,6 +1,7 @@
 package com.example.litreader.ui.reader
 
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Bundle
 import android.text.Layout
@@ -8,6 +9,7 @@ import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.StaticLayout
 import android.text.TextPaint
+import android.text.style.BackgroundColorSpan
 import android.view.GestureDetector
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -34,6 +36,8 @@ import com.example.litreader.data.repo.BookRepository
 import com.example.litreader.databinding.ActivityReaderBinding
 import com.example.litreader.ui.detail.ThreadDetailActivity
 import com.example.litreader.ui.gallery.GalleryActivity
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.min
@@ -63,8 +67,13 @@ class ReaderActivity : AppCompatActivity() {
     private var pages: List<Paginator.Page> = emptyList()
     private var floorOffsets: Map<Int, Int> = emptyMap()
     private var images: List<String> = emptyList()
+    private var imageSlots: List<ImageSlot> = emptyList()
+    private var appliedImageUrls = mutableSetOf<String>()
+    private var reflowJob: Job? = null
     private var loaded = false
     private var restoredOnce = false
+    /** 本次打开的目标恢复点：恢复完成前，任何尺寸变化/图片重排的 rebuild 都用它，避免被第 1 页覆盖。 */
+    private var openRestoreOffset = -1
     private var menuShown = true
     private var finished = false
 
@@ -164,9 +173,60 @@ class ReaderActivity : AppCompatActivity() {
         spannable = builder.build(posts)
         floorOffsets = builder.floorOffsets
         images = builder.imageUrls.toList()
+        imageSlots = builder.imageSlots
         loaded = true
+        openRestoreOffset = savedOffset()
         bind.content.post {
             rebuild(restoreOffset = savedOffset(), restoreProgress = !restoredOnce)
+            requestInlineImages()
+        }
+    }
+
+    // ---------- 内联图片 ----------
+
+    /** 按需加载正文图片，完成后挂 ImageSpan；多张先后到齐合并成一次重排。 */
+    private fun requestInlineImages() {
+        val s = spannable ?: return
+        val targetW = contentWidth()
+        imageSlots.filter { it.url !in appliedImageUrls }
+            .groupBy { it.url }
+            .forEach { (url, slots) ->
+                InlineImages.load(this, url, targetW, lifecycleScope) { bmp ->
+                    if (bmp == null) return@load  // 加载失败：保留占位块，仍可点击进画廊
+                    appliedImageUrls += url
+                    applyImage(s, url, slots, bmp)
+                }
+            }
+    }
+
+    private fun applyImage(s: SpannableStringBuilder, url: String, slots: List<ImageSlot>, bmp: Bitmap) {
+        val targetW = contentWidth().coerceAtLeast(200)
+        val maxH = contentHeight() * 3 / 4  // 图片行过高分页时必然独占一页，限制在页高 3/4 内
+        var scale = targetW.toFloat() / bmp.width
+        if (scale > 2f) scale = 2f  // 小图最多放大两倍，避免糊成马赛克
+        if (bmp.height * scale > maxH) scale = maxH.toFloat() / bmp.height
+        val w = (bmp.width * scale).toInt().coerceAtLeast(1)
+        val h = (bmp.height * scale).toInt().coerceAtLeast(1)
+        var changed = false
+        for (slot in slots) {
+            if (slot.start >= s.length || s[slot.start] != '\uFFFC') continue
+            s.getSpans(slot.start, slot.end, BackgroundColorSpan::class.java)
+                .firstOrNull()?.let { s.removeSpan(it) }
+            s.setSpan(
+                InlineImageSpan(bmp, w, h, lineSpacing, textPaint().fontMetricsInt.let { it.descent - it.ascent }),
+                slot.start, slot.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            changed = true
+        }
+        if (changed) scheduleReflow()
+    }
+
+    /** 图片高度改变行高，需重排；120ms 合并窗口避免多图连环闪页。 */
+    private fun scheduleReflow() {
+        reflowJob?.cancel()
+        reflowJob = lifecycleScope.launch {
+            delay(120)
+            if (loaded) rebuild(restoreOffset = restoreOffsetForReflow())
         }
     }
 
@@ -176,7 +236,7 @@ class ReaderActivity : AppCompatActivity() {
         val a = "这一段模拟正文专门用来检查阅读器边距：上边距处首行不得顶进留白，下边距处末行不得侵入留白，左右留白需要对称，并在紧凑、标准、宽松三档之间切换时同步变化。翻页时上一页的最后一行不能残留在本页的上边距里，本页的第一行也不能探出到上一页的下边距里。"
         val b = "中文排版按字折行，无论一行以哪个字开头结尾，正文区域都应始终位于上下左右留白之内，页码与进度也按同一区域计算。段落之间的间距与楼层标记的位置同样不能越过留白边界。"
         val c = "短段落，仅一行。"
-        val mixed = "<p><b>粗体</b>与<i>斜体</i>与<u>下划线</u>与<font color=\"#8B2500\">朱砂色文字</font>混排，再放一张图片：<img src=\"https://example.com/mock1.jpg\">图片之后继续一段普通文字，用来确认图片行前后的行高与边距没有异常跳变。</p>"
+        val mixed = "<p><b>粗体</b>与<i>斜体</i>与<u>下划线</u>与<font color=\"#8B2500\">朱砂色文字</font>混排，再放一张图片：<img src=\"http://127.0.0.1:8123/test.jpg\">图片之后继续一段普通文字，用来确认图片行前后的行高与边距没有异常跳变。再来一张竖图：<img src=\"http://127.0.0.1:8123/test2.jpg\">完。</p>"
         return listOf(
             Post(author = "排版验收", floor = 1, contentHtml = "<p>${a.repeat(3)}</p><p>$c</p>$mixed"),
             Post(author = "排版验收", floor = 2, contentHtml = "<blockquote>引用块：左右缩进叠加在正文边距内，整块使用弱化色，不得突破右侧留白。</blockquote><p>${b.repeat(4)}</p>"),
@@ -203,6 +263,10 @@ class ReaderActivity : AppCompatActivity() {
         color = theme.fg
     }
 
+    /** 恢复完成前一律回到本次打开的目标位置，防止尺寸变化把位置重置回第 1 页。 */
+    private fun restoreOffsetForReflow(): Int =
+        if (openRestoreOffset >= 0) openRestoreOffset else currentOffset()
+
     /** 重建排版并恢复到 restoreOffset 附近的页。 */
     private fun rebuild(restoreOffset: Int = currentOffset(), restoreProgress: Boolean = false) {
         if (!loaded) return
@@ -221,10 +285,21 @@ class ReaderActivity : AppCompatActivity() {
     private fun setupFlip(restoreOffset: Int) {
         bind.pager.visibility = View.VISIBLE
         bind.scrollWrap.visibility = View.GONE
+        // 覆盖式翻页：当前页在上层滑出，次页原地揭示（而非两页平移）
+        bind.pager.setPageTransformer { page, pos ->
+            if (pos > 0f) {
+                page.translationX = -pos * page.width
+                page.translationZ = 0f
+            } else {
+                page.translationX = 0f
+                page.translationZ = 1f
+            }
+        }
         layout?.let {
             bind.pager.adapter = PagesAdapter(
                 it, pages, pageCallbacks,
-                intArrayOf(pads[2], pads[0], pads[3], pads[1])  // l, t, r, b
+                intArrayOf(pads[2], pads[0], pads[3], pads[1]),  // l, t, r, b
+                theme.bg
             )
         }
         bind.pager.post {
@@ -251,6 +326,7 @@ class ReaderActivity : AppCompatActivity() {
             } else {
                 scrollToOffset(restoreOffset)
             }
+            openRestoreOffset = -1
             saveProgress()
         }
     }
@@ -260,6 +336,7 @@ class ReaderActivity : AppCompatActivity() {
         var idx = 0
         for (i in pages.indices) if (pages[i].startChar <= offset) idx = i
         bind.pager.setCurrentItem(idx, false)
+        openRestoreOffset = -1
         updatePageLabel()
         if (!restoredOnce && offset > 0) {
             toast(getString(R.string.reader_restored))
@@ -306,7 +383,7 @@ class ReaderActivity : AppCompatActivity() {
             if (loaded && v.width > 0 && v.height > 0 &&
                 (r - l != orr - ol || b - t != ob - ot)
             ) {
-                v.post { rebuild(restoreOffset = currentOffset()) }
+                v.post { rebuild(restoreOffset = restoreOffsetForReflow()) }
             }
         }
 
@@ -648,7 +725,13 @@ class ReaderActivity : AppCompatActivity() {
                 bind.scrollWrap.scrollY.toFloat() / h
             }
         }
-        posPrefs.edit().putString("pos_$tid", "${currentOffset()}:${ratio.coerceIn(0f, 1f)}").apply()
+        val edit = posPrefs.edit()
+            .putString("pos_$tid", "${currentOffset()}:${ratio.coerceIn(0f, 1f)}")
+        if (ratio > 0.005f) {
+            // 供首页「继续阅读」卡片：最近一次真正开始阅读的帖子
+            edit.putString("last", "$tid\u0001$sourceId\u0001${bind.tvTitle.text}\u0001${ratio.coerceIn(0f, 1f)}")
+        }
+        edit.apply()
     }
 
     // ---------- 工具 ----------
@@ -680,7 +763,8 @@ class ReaderActivity : AppCompatActivity() {
         private val layout: StaticLayout,
         private val pages: List<Paginator.Page>,
         private val callbacks: PageView.Callbacks,
-        private val padsPx: IntArray  // l, t, r, b
+        private val padsPx: IntArray,  // l, t, r, b
+        private val bgColor: Int       // 页面必须不透明：覆盖式翻页靠上层页遮住钉在脚下的次页
     ) : RecyclerView.Adapter<PagesAdapter.PVH>() {
 
         class PVH(val view: PageView) : RecyclerView.ViewHolder(view)
@@ -691,6 +775,7 @@ class ReaderActivity : AppCompatActivity() {
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
                 )
                 setPadding(padsPx[0], padsPx[1], padsPx[2], padsPx[3])
+                setBackgroundColor(bgColor)
                 callbacks = this@PagesAdapter.callbacks
             }
             return PVH(view)

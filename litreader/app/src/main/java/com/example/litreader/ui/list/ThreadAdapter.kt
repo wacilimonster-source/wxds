@@ -19,15 +19,21 @@ class ThreadAdapter(
 ) : RecyclerView.Adapter<ThreadAdapter.VH>() {
 
     private var data = listOf<ThreadEntity>()
+    private var progress: Map<String, Float> = emptyMap()
 
-    fun submit(list: List<ThreadEntity>) {
+    fun submit(list: List<ThreadEntity>) = submit(list, progress)
+
+    fun submit(list: List<ThreadEntity>, progressMap: Map<String, Float>) {
         val old = data
+        val oldProgress = progress
         data = list
+        progress = progressMap
         DiffUtil.calculateDiff(object : DiffUtil.Callback() {
             override fun getOldListSize() = old.size
             override fun getNewListSize() = list.size
             override fun areItemsTheSame(o: Int, n: Int) = old[o].tid == list[n].tid
-            override fun areContentsTheSame(o: Int, n: Int) = old[o] == list[n]
+            override fun areContentsTheSame(o: Int, n: Int) =
+                old[o] == list[n] && oldProgress[old[o].tid] == progress[list[n].tid]
         }).dispatchUpdatesTo(this)
     }
 
@@ -69,7 +75,7 @@ class ThreadAdapter(
         if (t.replies.isNotEmpty()) meta += "${t.replies}回"
         h.b.tvMeta.text = meta.joinToString(" · ")
 
-        // 已读/已读完视觉标识：已读完标题置灰 + 朱砂「已读完」，已读显示灰「已读」
+        // 已读/已读完视觉标识：已读完标题置灰 + 朱砂「已读完」，已读显示进度百分比
         val ctx = h.b.root.context
         when (t.readState) {
             2 -> {
@@ -80,7 +86,12 @@ class ThreadAdapter(
             }
             1 -> {
                 h.b.tvReadMark.visibility = View.VISIBLE
-                h.b.tvReadMark.text = ctx.getString(R.string.filter_read)
+                val p = progress[t.tid]
+                if (p != null && p > 0.005f) {
+                    h.b.tvReadMark.text = ctx.getString(R.string.item_progress, (p * 100).toInt())
+                } else {
+                    h.b.tvReadMark.text = ctx.getString(R.string.filter_read)
+                }
                 h.b.tvReadMark.setTextColor(ContextCompat.getColor(ctx, R.color.inkSecondary))
                 h.b.tvTitle.setTextColor(ContextCompat.getColor(ctx, R.color.inkPrimary))
             }

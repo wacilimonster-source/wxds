@@ -26,9 +26,12 @@ class ImageLinkSpan(val url: String) : ClickableSpan() {
     }
 }
 
+/** 正文里一张内联图的位置（\uFFFC 占位字符的区间），供异步加载后挂 ImageSpan。 */
+data class ImageSlot(val start: Int, val end: Int, val url: String)
+
 /**
  * 论坛正文 HTML → 原生 Spannable（阅读器排版）。
- * 支持段落/换行、粗斜下划线、font 颜色、引用块（缩进+浅色）、图片（占位 chip）；
+ * 支持段落/换行、粗斜下划线、font 颜色、引用块（缩进+浅色）、图片（内联占位，异步加载真图）；
  * 楼层小节标记「第 N 樓」按开关插入，并记录楼层→字符偏移供跳转。
  */
 class HtmlToSpans(
@@ -38,6 +41,8 @@ class HtmlToSpans(
 ) {
     val imageUrls = LinkedHashSet<String>()
     val floorOffsets = LinkedHashMap<Int, Int>()
+    /** 每张图在文中的 [start, end) 区间（单字符 \uFFFC），加载完成后按此挂 ImageSpan。 */
+    val imageSlots = ArrayList<ImageSlot>()
 
     fun build(posts: List<Post>): SpannableStringBuilder {
         val sb = SpannableStringBuilder()
@@ -68,9 +73,10 @@ class HtmlToSpans(
                         if (src.startsWith("http")) {
                             imageUrls.add(src)
                             val ms = sb.length
-                            sb.append("［图］")
+                            sb.append("\uFFFC")  // 内联图占位，加载后挂 ImageSpan
                             sb.setSpan(ImageLinkSpan(src), ms, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                             sb.setSpan(BackgroundColorSpan(0x2E8A7F70), ms, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            imageSlots.add(ImageSlot(ms, sb.length, src))
                         }
                     }
                     "script", "style", "h5" -> return

@@ -37,8 +37,16 @@ object Paginator {
         return pages
     }
 
-    private fun inkBottom(l: StaticLayout, line: Int, inkDescentPx: Float): Int =
-        minOf(l.getLineBottom(line), l.getLineBaseline(line) + inkDescentPx.toInt())
+    /**
+     * 行的实际视觉底：文本行取「行框 与 基线+字体下沉」的较小值（行距倍数的额外空间堆在
+     * descent 里，不能算进正文）；内联图行（含 \uFFFC）行框即图高+行距，必须整框参与分页，
+     * 否则图会被低估成一行文本高度，塞进装不下的页里被裁。
+     */
+    private fun inkBottom(l: StaticLayout, line: Int, inkDescentPx: Float): Int {
+        val isImageLine = l.text.indexOf('\uFFFC', l.getLineStart(line)).let { it in l.getLineStart(line) until l.getLineEnd(line) }
+        return if (isImageLine) l.getLineBottom(line)
+        else minOf(l.getLineBottom(line), l.getLineBaseline(line) + inkDescentPx.toInt())
+    }
 
     private fun makePage(l: StaticLayout, start: Int, end: Int, inkDescentPx: Float): Page = Page(
         startLine = start,

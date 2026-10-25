@@ -39,6 +39,7 @@ class ThreadListFragment : Fragment() {
     private var sourceId: String = ""
     private var syncVm: CatalogSyncViewModel? = null
     private var lastObservedRunning: Boolean? = null
+    private var isText = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,7 +66,7 @@ class ThreadListFragment : Fragment() {
         bind.recycler.layoutManager = LinearLayoutManager(requireContext())
         bind.recycler.adapter = adapter
 
-        val isText = source.style == SourceStyle.TEXT
+        isText = source.style == SourceStyle.TEXT
         if (isText) {
             // 文学区：目录全量落库 + 增量同步（MainActivity 进 App 已触发，此处共享同一 VM）
             syncVm = ViewModelProvider(
@@ -94,7 +95,7 @@ class ThreadListFragment : Fragment() {
         bind.btnMore.setOnClickListener { showMoreMenu(view) }
 
         vm.threads.observe(viewLifecycleOwner) { list ->
-            adapter.submit(list)
+            adapter.submit(list, readProgressMap())
             bind.emptyBox.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
             bind.swipe.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
             if (list.isEmpty()) {
@@ -126,12 +127,50 @@ class ThreadListFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        // 从阅读器/详情返回时刷新已读标记（本地读取，开销极小）；首次进入不重复加载
+        // 从阅读器/详情返回时刷新已读标记、继续阅读卡片（本地读取，开销极小）；首次进入不重复加载
+        renderContinueCard()
         if (firstResume) {
             firstResume = false
             return
         }
         if (this::vm.isInitialized) vm.load(vm.page)
+    }
+
+    /** 「继续阅读」卡片：最近一次开始读的帖子 + 进度，一键回到阅读器。 */
+    private fun renderContinueCard() {
+        if (!isText || !this::bind.isInitialized) return
+        val raw = requireActivity()
+            .getSharedPreferences("reader_pos", Context.MODE_PRIVATE)
+            .getString("last", null)
+        val parts = raw?.split("\u0001") ?: emptyList()
+        if (parts.size < 4) {
+            bind.continueCard.visibility = View.GONE
+            return
+        }
+        val (tid, sourceId, title, ratio) = parts
+        bind.tvContinueTitle.text = title
+        bind.tvContinueProgress.text =
+            getString(R.string.continue_last, ((ratio.toFloatOrNull() ?: 0f) * 100).toInt())
+        bind.continueCard.visibility = View.VISIBLE
+        bind.continueCard.setOnClickListener {
+            startActivity(Intent(requireContext(), com.example.litreader.ui.reader.ReaderActivity::class.java).apply {
+                putExtra("tid", tid)
+                putExtra("title", title)
+                putExtra("sourceId", sourceId)
+            })
+        }
+    }
+
+    /** tid → 已读比例（0<ratio≤1），供列表卡片显示「读到 N%」。 */
+    private fun readProgressMap(): Map<String, Float> {
+        val map = HashMap<String, Float>()
+        for ((k, v) in requireActivity()
+            .getSharedPreferences("reader_pos", Context.MODE_PRIVATE).all) {
+            if (!k.startsWith("pos_")) continue
+            val ratio = (v as? String)?.split(":")?.getOrNull(1)?.toFloatOrNull() ?: continue
+            if (ratio > 0.005f) map[k.removePrefix("pos_")] = ratio
+        }
+        return map
     }
 
     /** 手动刷新：文学区走目录增量同步（完成回调里会重载列表），贴图区沿用在线补页。 */
