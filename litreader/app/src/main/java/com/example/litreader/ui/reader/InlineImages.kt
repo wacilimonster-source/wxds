@@ -22,6 +22,8 @@ object InlineImages {
     }
     private var diskDir: File? = null
 
+    private const val MAX_DISK_BYTES = 128L * 1024 * 1024
+
     fun load(context: Context, url: String, targetWidth: Int, scope: CoroutineScope, onReady: (Bitmap?) -> Unit) {
         mem.get(url)?.let { onReady(it); return }
         scope.launch {
@@ -50,6 +52,19 @@ object InlineImages {
             val tmp = File(f.parentFile, f.name + ".part")
             tmp.writeBytes(bytes)
             if (!tmp.renameTo(f)) f.writeBytes(bytes)
+            pruneDisk(f.parentFile)
+        }
+    }
+
+    /** 磁盘缓存上限 128MB，超限按最旧优先清理（阅读器正文图长期累积的兜底）。 */
+    private fun pruneDisk(dir: File?) {
+        val files = dir?.listFiles() ?: return
+        var total = files.sumOf { it.length() }
+        if (total <= MAX_DISK_BYTES) return
+        files.filter { it.name.endsWith(".img") }.sortedBy { it.lastModified() }.forEach {
+            if (total <= MAX_DISK_BYTES) return
+            total -= it.length()
+            it.delete()
         }
     }
 

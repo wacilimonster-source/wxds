@@ -3,6 +3,7 @@ package com.example.litreader.ui.reader
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Typeface
 import android.os.Bundle
 import android.text.Layout
 import android.text.SpannableStringBuilder
@@ -70,6 +71,13 @@ class ReaderActivity : AppCompatActivity() {
     private var imageSlots: List<ImageSlot> = emptyList()
     private var appliedImageUrls = mutableSetOf<String>()
     private var reflowJob: Job? = null
+    // ---------- 正文搜索 ----------
+    private var searchMatches: List<Int> = emptyList()
+    private var searchIdx = -1
+    private var searchTerm = ""
+    private val searchSpans = ArrayList<BackgroundColorSpan>()
+    private var searchCurrentSpan: BackgroundColorSpan? = null
+    private var searchDialog: androidx.appcompat.app.AlertDialog? = null
     private var loaded = false
     private var restoredOnce = false
     /** 本次打开的目标恢复点：恢复完成前，任何尺寸变化/图片重排的 rebuild 都用它，避免被第 1 页覆盖。 */
@@ -112,6 +120,9 @@ class ReaderActivity : AppCompatActivity() {
     private var keepAwake: Boolean
         get() = prefs2.getBoolean("keepAwake", true)
         set(value) = prefs2.edit().putBoolean("keepAwake", value).apply()
+    private var serif: Boolean
+        get() = prefs2.getBoolean("serif", false)
+        set(value) = prefs2.edit().putBoolean("serif", value).apply()
     private var padIdx: Int
         get() = prefs2.getInt("pad", 1).coerceIn(0, padPresets.size - 1)
         set(value) = prefs2.edit().putInt("pad", value).apply()
@@ -235,7 +246,7 @@ class ReaderActivity : AppCompatActivity() {
     private fun mockPosts(): List<com.example.litreader.data.model.Post> {
         val a = "这一段模拟正文专门用来检查阅读器边距：上边距处首行不得顶进留白，下边距处末行不得侵入留白，左右留白需要对称，并在紧凑、标准、宽松三档之间切换时同步变化。翻页时上一页的最后一行不能残留在本页的上边距里，本页的第一行也不能探出到上一页的下边距里。"
         val b = "中文排版按字折行，无论一行以哪个字开头结尾，正文区域都应始终位于上下左右留白之内，页码与进度也按同一区域计算。段落之间的间距与楼层标记的位置同样不能越过留白边界。"
-        val c = "短段落，仅一行。"
+        val c = "短段落，仅一行。Here is Margin word."
         val mixed = "<p><b>粗体</b>与<i>斜体</i>与<u>下划线</u>与<font color=\"#8B2500\">朱砂色文字</font>混排，再放一张图片：<img src=\"http://127.0.0.1:8123/test.jpg\">图片之后继续一段普通文字，用来确认图片行前后的行高与边距没有异常跳变。再来一张竖图：<img src=\"http://127.0.0.1:8123/test2.jpg\">完。</p>"
         return listOf(
             Post(author = "排版验收", floor = 1, contentHtml = "<p>${a.repeat(3)}</p><p>$c</p>$mixed"),
@@ -261,6 +272,7 @@ class ReaderActivity : AppCompatActivity() {
         isAntiAlias = true
         textSize = sp(fontSp())
         color = theme.fg
+        typeface = if (serif) Typeface.SERIF else Typeface.SANS_SERIF
     }
 
     /** 恢复完成前一律回到本次打开的目标位置，防止尺寸变化把位置重置回第 1 页。 */
@@ -315,6 +327,7 @@ class ReaderActivity : AppCompatActivity() {
         bind.scrollText.textSize = fontSp().toFloat()
         bind.scrollText.setLineSpacing(0f, lineSpacing)
         bind.scrollText.setTextColor(theme.fg)
+        bind.scrollText.typeface = if (serif) Typeface.SERIF else Typeface.SANS_SERIF
         bind.scrollText.setPadding(pads[2], pads[0], pads[3], pads[1])
         bind.scrollWrap.post {
             if (restoreProgress && !restoredOnce) {
@@ -331,14 +344,14 @@ class ReaderActivity : AppCompatActivity() {
         }
     }
 
-    private fun jumpToOffset(offset: Int) {
+    private fun jumpToOffset(offset: Int, quiet: Boolean = false) {
         if (pages.isEmpty()) return
         var idx = 0
         for (i in pages.indices) if (pages[i].startChar <= offset) idx = i
         bind.pager.setCurrentItem(idx, false)
         openRestoreOffset = -1
         updatePageLabel()
-        if (!restoredOnce && offset > 0) {
+        if (!quiet && !restoredOnce && offset > 0) {
             toast(getString(R.string.reader_restored))
             restoredOnce = true
         }
@@ -514,6 +527,13 @@ class ReaderActivity : AppCompatActivity() {
             applyKeepAwake()
             renderAwakeLabel()
         }
+        bind.btnSearch.setOnClickListener { showSearchDialog() }
+        bind.btnFontFamily.setOnClickListener {
+            serif = !serif
+            renderFontFamilyLabel()
+            rebuild()
+        }
+        bind.btnForum.text = "论坛"  // 短文案避免窄屏换行
         bind.btnFloorJump.setOnClickListener { showFloorJump() }
         bind.btnForum.setOnClickListener { goForum() }
         bind.btnFinished.setOnClickListener {
@@ -528,6 +548,7 @@ class ReaderActivity : AppCompatActivity() {
         renderAutoFinishLabel()
         renderVolumeLabel()
         renderAwakeLabel()
+        renderFontFamilyLabel()
         renderFinishedLabel()
         bind.btnLine.text = getString(R.string.reader_line, trim(lineSpacing))
         bind.btnTheme.text = getString(R.string.reader_theme, theme.label)
@@ -571,6 +592,118 @@ class ReaderActivity : AppCompatActivity() {
 
     private fun floorForJump(f: Int): Int? =
         floorOffsets[f] ?: floorOffsets.keys.filter { it <= f }.maxOrNull()?.let { floorOffsets[it] }
+
+    // ---------- 正文搜索 ----------
+
+    private fun showSearchDialog() {
+        if (!loaded) return
+        val input = EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+            hint = getString(R.string.reader_search_hint)
+            setText(searchTerm)
+        }
+        val wrap = FrameLayout(this).apply {
+            val pad = dp(20)
+            setPadding(pad, dp(10), pad, 0)
+            addView(input)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(getString(R.string.reader_search_title))
+            .setView(wrap)
+            .setPositiveButton(R.string.reader_search_next, null)
+            .setNegativeButton(R.string.reader_search_prev, null)
+            .setNeutralButton(R.string.cancel, null)
+            .create()
+        searchDialog = dialog
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                if (ensureSearch(input)) navigateMatch(1)
+            }
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
+                if (ensureSearch(input)) navigateMatch(-1)
+            }
+            input.setOnEditorActionListener { _, actionId, event ->
+                val enter = actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH ||
+                    event?.keyCode == KeyEvent.KEYCODE_ENTER
+                if (enter && ensureSearch(input)) navigateMatch(1)
+                enter
+            }
+        }
+        dialog.setOnDismissListener {
+            searchDialog = null
+            clearSearchSpans()
+            if (loaded) rebuild(restoreOffset = restoreOffsetForReflow())
+        }
+        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+        dialog.show()
+        input.requestFocus()
+    }
+
+    /** 关键词变化则重新搜索；返回是否存在匹配。 */
+    private fun ensureSearch(input: EditText): Boolean {
+        val term = input.text.toString().trim()
+        if (term.isEmpty()) return false
+        if (term != searchTerm) doSearch(term)
+        return searchMatches.isNotEmpty()
+    }
+
+    private fun doSearch(term: String) {
+        val s = spannable ?: return
+        clearSearchSpans()
+        searchTerm = term
+        val hay = s.toString().lowercase()
+        val needle = term.lowercase()
+        val found = ArrayList<Int>()
+        var i = hay.indexOf(needle)
+        while (i >= 0) {
+            found.add(i)
+            val span = BackgroundColorSpan(0x66FFC107)
+            s.setSpan(span, i, i + needle.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            searchSpans.add(span)
+            i = hay.indexOf(needle, i + needle.length)
+        }
+        searchMatches = found
+        if (found.isEmpty()) {
+            searchIdx = -1
+            searchDialog?.setTitle(getString(R.string.reader_search_none, term))
+            return
+        }
+        val cur = currentOffset()
+        searchIdx = found.indexOfFirst { it >= cur }.let { if (it >= 0) it else 0 }
+        jumpToMatch()
+    }
+
+    /** 当前匹配高亮加深并跳到该页；span 变化通过 rebuild 触发重绘（setupFlip 内部会跳回目标页）。 */
+    private fun jumpToMatch() {
+        if (searchIdx !in searchMatches.indices) return
+        val s = spannable ?: return
+        val start = searchMatches[searchIdx]
+        val end = start + searchTerm.length
+        searchCurrentSpan?.let { s.removeSpan(it) }
+        searchCurrentSpan = BackgroundColorSpan(0xCCFF7043.toInt()).also {
+            s.setSpan(it, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        searchDialog?.setTitle(getString(R.string.reader_search_count, searchMatches.size, searchIdx + 1))
+        jumpToOffset(start, quiet = true)
+        rebuild(restoreOffset = start)
+    }
+
+    private fun navigateMatch(delta: Int) {
+        if (searchMatches.isEmpty()) return
+        searchIdx = (searchIdx + delta + searchMatches.size) % searchMatches.size
+        jumpToMatch()
+    }
+
+    private fun clearSearchSpans() {
+        val s = spannable ?: return
+        searchSpans.forEach { s.removeSpan(it) }
+        searchCurrentSpan?.let { s.removeSpan(it) }
+        searchSpans.clear()
+        searchCurrentSpan = null
+        searchMatches = emptyList()
+        searchIdx = -1
+    }
 
     private fun goForum() {
         startActivity(Intent(this, ThreadDetailActivity::class.java).apply {
@@ -668,6 +801,12 @@ class ReaderActivity : AppCompatActivity() {
         )
     }
 
+    private fun renderFontFamilyLabel() {
+        bind.btnFontFamily.text = getString(
+            R.string.reader_font_family, getString(if (serif) R.string.font_serif else R.string.font_sans)
+        )
+    }
+
     /** 阅读时常亮：窗口级 FLAG，离开阅读器自动失效。 */
     private fun applyKeepAwake() {
         if (keepAwake) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -676,7 +815,7 @@ class ReaderActivity : AppCompatActivity() {
 
     /** 音量键翻页：翻页模式翻页，滚动模式滚一屏（按住连发）。 */
     override fun dispatchKeyEvent(ev: KeyEvent): Boolean {
-        if (volumeFlip && loaded) {
+        if (volumeFlip && loaded && searchDialog?.isShowing != true) {
             when (ev.keyCode) {
                 KeyEvent.KEYCODE_VOLUME_UP -> if (ev.action == KeyEvent.ACTION_DOWN) { movePage(-1); return true }
                 KeyEvent.KEYCODE_VOLUME_DOWN -> if (ev.action == KeyEvent.ACTION_DOWN) { movePage(1); return true }

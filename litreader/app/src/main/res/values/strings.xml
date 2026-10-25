@@ -77,6 +77,16 @@
     <string name="continue_reading">继续阅读</string>
     <string name="continue_last">上次看到 %1$d%%</string>
     <string name="item_progress">读到 %1$d%%</string>
+
+    <string name="reader_search_title">搜索正文</string>
+    <string name="reader_search_hint">输入关键词</string>
+    <string name="reader_search_none">未找到「%1$s」</string>
+    <string name="reader_search_count">共 %1$d 处 · 第 %2$d 处</string>
+    <string name="reader_search_prev">上一个</string>
+    <string name="reader_search_next">下一个</string>
+    <string name="reader_font_family">字体 %1$s</string>
+    <string name="font_serif">宋</string>
+    <string name="font_sans">黑</string>
     <string name="reader_restored">已回到上次阅读位置</string>
     <string name="reader_empty">此帖暂无可读正文</string>
     <string name="retry">重试</string>

@@ -221,6 +221,10 @@
             <TextView
                 android:id="@+id/btnPad"
                 style="@style/ReaderMenuItem" />
+            <TextView
+                android:id="@+id/btnSearch"
+                android:text="@string/reader_search_title"
+                style="@style/ReaderMenuItem" />
         </LinearLayout>
 
         <LinearLayout
@@ -232,6 +236,9 @@
                 style="@style/ReaderMenuItem" />
             <TextView
                 android:id="@+id/btnAwake"
+                style="@style/ReaderMenuItem" />
+            <TextView
+                android:id="@+id/btnFontFamily"
                 style="@style/ReaderMenuItem" />
         </LinearLayout>
     </LinearLayout>
