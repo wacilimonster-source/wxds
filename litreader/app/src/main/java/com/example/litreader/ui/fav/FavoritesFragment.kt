@@ -1,10 +1,12 @@
 package com.example.litreader.ui.fav
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.PopupMenu
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -20,6 +22,9 @@ class FavoritesFragment : Fragment() {
     private lateinit var bind: FragmentFavoritesBinding
     private lateinit var vm: FavoritesViewModel
     private lateinit var adapter: ThreadAdapter
+
+    /** 0=收藏先后 1=帖子时间 2=标题 */
+    private var sortMode = 0
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -38,6 +43,9 @@ class FavoritesFragment : Fragment() {
         bind.recycler.layoutManager = LinearLayoutManager(requireContext())
         bind.recycler.adapter = adapter
 
+        sortMode = requireActivity()
+            .getSharedPreferences("fav", Context.MODE_PRIVATE).getInt("sort", 0)
+
         bind.filterGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (!isChecked) return@addOnButtonCheckedListener
             vm.applyFilter(
@@ -49,13 +57,47 @@ class FavoritesFragment : Fragment() {
             )
         }
 
+        bind.tvFavSort.setOnClickListener { showSortMenu() }
+
         vm.threads.observe(viewLifecycleOwner) { list ->
-            adapter.submit(list)
+            adapter.submit(sort(list))
             bind.emptyBox.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
         }
         vm.loading.observe(viewLifecycleOwner) {
             bind.progress.visibility = if (it) View.VISIBLE else View.GONE
         }
+    }
+
+    /** 排序菜单：收藏先后 / 帖子时间 / 标题，选择持久化。 */
+    private fun showSortMenu() {
+        val popup = PopupMenu(requireContext(), bind.tvFavSort)
+        val labels = listOf(
+            R.string.fav_sort_fav,
+            R.string.fav_sort_time,
+            R.string.fav_sort_title
+        )
+        labels.forEachIndexed { i, res ->
+            popup.menu.add(0, i, i, getString(res)).isChecked = sortMode == i
+        }
+        popup.menu.setGroupCheckable(0, true, true)
+        popup.setOnMenuItemClickListener {
+            if (sortMode != it.itemId) {
+                sortMode = it.itemId
+                requireActivity().getSharedPreferences("fav", Context.MODE_PRIVATE)
+                    .edit().putInt("sort", sortMode).apply()
+                vm.load()
+            }
+            true
+        }
+        popup.show()
+    }
+
+    private fun sort(list: List<ThreadEntity>): List<ThreadEntity> = when (sortMode) {
+        1 -> list.sortedByDescending { it.timestamp }
+        2 -> list.sortedBy { it.title }
+        else -> list.sortedWith(
+            compareByDescending<ThreadEntity> { it.favoriteAt }.thenByDescending { it.timestamp }
+        )
     }
 
     override fun onResume() {

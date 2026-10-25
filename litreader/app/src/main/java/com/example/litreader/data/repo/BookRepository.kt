@@ -42,7 +42,8 @@ class BookRepository(
             toEntity(sourceId, it).copy(
                 sitePage = page,
                 favorite = m?.favorite ?: false,
-                readState = m?.readState ?: 0
+                readState = m?.readState ?: 0,
+                favoriteAt = m?.favoriteAt ?: 0
             )
         }
         db.threadDao().upsertAll(ents)
@@ -165,7 +166,8 @@ class BookRepository(
     suspend fun search(q: String): List<ThreadEntity> =
         db.threadDao().searchAll("%$q%")
 
-    suspend fun setFavorite(tid: String, fav: Boolean) = db.threadDao().setFavorite(tid, fav)
+    suspend fun setFavorite(tid: String, fav: Boolean) =
+        db.threadDao().setFavorite(tid, fav, System.currentTimeMillis())
 
     suspend fun isFavorite(tid: String): Boolean = db.threadDao().isFavorite(tid) ?: false
 

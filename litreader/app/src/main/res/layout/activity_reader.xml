@@ -128,7 +128,7 @@
             app:tint="@color/galleryOnDark" />
     </LinearLayout>
 
-    <!-- 菜单-底部 -->
+    <!-- 菜单-底部：进度 + 排版/更多两面板 -->
     <LinearLayout
         android:id="@+id/menuBottom"
         android:orientation="vertical"
@@ -136,7 +136,7 @@
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
         android:paddingTop="8dp"
-        android:paddingBottom="14dp"
+        android:paddingBottom="10dp"
         android:layout_gravity="bottom"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
@@ -165,81 +165,134 @@
 
         <LinearLayout
             android:orientation="horizontal"
-            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:paddingTop="2dp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
             <TextView
-                android:id="@+id/btnFontDown"
-                android:text="A−"
-                style="@style/ReaderMenuItem" />
+                android:id="@+id/menuTabStyle"
+                android:text="@string/menu_style"
+                android:textSize="14sp"
+                android:textColor="@color/accent"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:clickable="true"
+                android:background="?attr/selectableItemBackground"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
             <TextView
-                android:id="@+id/tvFont"
-                android:text="17"
-                style="@style/ReaderMenuItem" />
-            <TextView
-                android:id="@+id/btnFontUp"
-                android:text="A+"
-                style="@style/ReaderMenuItem" />
-            <TextView
-                android:id="@+id/btnLine"
-                style="@style/ReaderMenuItem" />
-            <TextView
-                android:id="@+id/btnTheme"
-                style="@style/ReaderMenuItem" />
+                android:id="@+id/menuTabMore"
+                android:text="@string/menu_more"
+                android:textSize="14sp"
+                android:textColor="@color/galleryOnDark"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:clickable="true"
+                android:background="?attr/selectableItemBackground"
+                android:layout_marginStart="24dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
         </LinearLayout>
 
-        <LinearLayout
-            android:orientation="horizontal"
+        <FrameLayout
+            android:id="@+id/menuPanels"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
-            <TextView
-                android:id="@+id/btnFlip"
-                style="@style/ReaderMenuItem" />
-            <TextView
-                android:id="@+id/btnMarks"
-                style="@style/ReaderMenuItem" />
-            <TextView
-                android:id="@+id/btnFinished"
-                style="@style/ReaderMenuItem" />
-            <TextView
-                android:id="@+id/btnFloorJump"
-                android:text="@string/reader_floor_jump"
-                style="@style/ReaderMenuItem" />
-            <TextView
-                android:id="@+id/btnForum"
-                android:text="@string/reader_forum"
-                style="@style/ReaderMenuItem" />
-        </LinearLayout>
 
-        <LinearLayout
-            android:orientation="horizontal"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-            <TextView
-                android:id="@+id/btnAutoFinish"
-                style="@style/ReaderMenuItem" />
-            <TextView
-                android:id="@+id/btnPad"
-                style="@style/ReaderMenuItem" />
-            <TextView
-                android:id="@+id/btnSearch"
-                android:text="@string/reader_search_title"
-                style="@style/ReaderMenuItem" />
-        </LinearLayout>
+            <!-- 排版面板 -->
+            <LinearLayout
+                android:id="@+id/panelStyle"
+                android:orientation="vertical"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+                <LinearLayout
+                    android:orientation="horizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        android:id="@+id/btnFontDown"
+                        android:text="A−"
+                        style="@style/ReaderMenuItem" />
+                    <TextView
+                        android:id="@+id/tvFont"
+                        android:text="17"
+                        style="@style/ReaderMenuItem" />
+                    <TextView
+                        android:id="@+id/btnFontUp"
+                        android:text="A+"
+                        style="@style/ReaderMenuItem" />
+                    <TextView
+                        android:id="@+id/btnLine"
+                        style="@style/ReaderMenuItem" />
+                    <TextView
+                        android:id="@+id/btnTheme"
+                        style="@style/ReaderMenuItem" />
+                </LinearLayout>
+                <LinearLayout
+                    android:orientation="horizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        android:id="@+id/btnPad"
+                        style="@style/ReaderMenuItem" />
+                    <TextView
+                        android:id="@+id/btnFontFamily"
+                        style="@style/ReaderMenuItem" />
+                </LinearLayout>
+            </LinearLayout>
 
-        <LinearLayout
-            android:orientation="horizontal"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-            <TextView
-                android:id="@+id/btnVolume"
-                style="@style/ReaderMenuItem" />
-            <TextView
-                android:id="@+id/btnAwake"
-                style="@style/ReaderMenuItem" />
-            <TextView
-                android:id="@+id/btnFontFamily"
-                style="@style/ReaderMenuItem" />
-        </LinearLayout>
+            <!-- 更多面板 -->
+            <LinearLayout
+                android:id="@+id/panelMore"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+                <LinearLayout
+                    android:orientation="horizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        android:id="@+id/btnFlip"
+                        style="@style/ReaderMenuItem" />
+                    <TextView
+                        android:id="@+id/btnMarks"
+                        style="@style/ReaderMenuItem" />
+                    <TextView
+                        android:id="@+id/btnFinished"
+                        style="@style/ReaderMenuItem" />
+                    <TextView
+                        android:id="@+id/btnFloorJump"
+                        android:text="@string/reader_floor_jump"
+                        style="@style/ReaderMenuItem" />
+                </LinearLayout>
+                <LinearLayout
+                    android:orientation="horizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        android:id="@+id/btnForum"
+                        android:text="@string/reader_forum"
+                        style="@style/ReaderMenuItem" />
+                    <TextView
+                        android:id="@+id/btnSearch"
+                        android:text="搜索"
+                        style="@style/ReaderMenuItem" />
+                    <TextView
+                        android:id="@+id/btnAutoFinish"
+                        style="@style/ReaderMenuItem" />
+                    <TextView
+                        android:id="@+id/btnVolume"
+                        style="@style/ReaderMenuItem" />
+                    <TextView
+                        android:id="@+id/btnAwake"
+                        style="@style/ReaderMenuItem" />
+                </LinearLayout>
+            </LinearLayout>
+        </FrameLayout>
     </LinearLayout>
 </FrameLayout>

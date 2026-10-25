@@ -123,6 +123,10 @@ class ReaderActivity : AppCompatActivity() {
     private var serif: Boolean
         get() = prefs2.getBoolean("serif", false)
         set(value) = prefs2.edit().putBoolean("serif", value).apply()
+    /** 底部菜单面板：0=排版 1=更多 */
+    private var menuTab: Int
+        get() = prefs2.getInt("menuTab", 0)
+        set(value) = prefs2.edit().putInt("menuTab", value).apply()
     private var padIdx: Int
         get() = prefs2.getInt("pad", 1).coerceIn(0, padPresets.size - 1)
         set(value) = prefs2.edit().putInt("pad", value).apply()
@@ -533,7 +537,10 @@ class ReaderActivity : AppCompatActivity() {
             renderFontFamilyLabel()
             rebuild()
         }
+        bind.menuTabStyle.setOnClickListener { menuTab = 0; renderMenuTab() }
+        bind.menuTabMore.setOnClickListener { menuTab = 1; renderMenuTab() }
         bind.btnForum.text = "论坛"  // 短文案避免窄屏换行
+        renderMenuTab()
         bind.btnFloorJump.setOnClickListener { showFloorJump() }
         bind.btnForum.setOnClickListener { goForum() }
         bind.btnFinished.setOnClickListener {
@@ -805,6 +812,21 @@ class ReaderActivity : AppCompatActivity() {
         bind.btnFontFamily.text = getString(
             R.string.reader_font_family, getString(if (serif) R.string.font_serif else R.string.font_sans)
         )
+    }
+
+    /** 底部菜单两面板切换：选中 tab 用主题色加粗。 */
+    private fun renderMenuTab() {
+        val styleSel = menuTab == 0
+        bind.menuTabStyle.setTextColor(
+            getColor(if (styleSel) R.color.accent else R.color.galleryOnDark)
+        )
+        bind.menuTabStyle.setTypeface(null, if (styleSel) Typeface.BOLD else Typeface.NORMAL)
+        bind.menuTabMore.setTextColor(
+            getColor(if (!styleSel) R.color.accent else R.color.galleryOnDark)
+        )
+        bind.menuTabMore.setTypeface(null, if (!styleSel) Typeface.BOLD else Typeface.NORMAL)
+        bind.panelStyle.visibility = if (styleSel) View.VISIBLE else View.GONE
+        bind.panelMore.visibility = if (styleSel) View.GONE else View.VISIBLE
     }
 
     /** 阅读时常亮：窗口级 FLAG，离开阅读器自动失效。 */

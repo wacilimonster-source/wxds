@@ -28,6 +28,10 @@
     <string name="tab_img">贴图</string>
     <string name="tab_fav">收藏</string>
     <string name="favorites_title">收藏夹</string>
+    <string name="fav_sort">排序</string>
+    <string name="fav_sort_fav">收藏先后</string>
+    <string name="fav_sort_time">帖子时间</string>
+    <string name="fav_sort_title">标题</string>
     <string name="filter_all">全部</string>
 
     <string name="save_image">保存</string>
@@ -78,6 +82,8 @@
     <string name="continue_last">上次看到 %1$d%%</string>
     <string name="item_progress">读到 %1$d%%</string>
 
+    <string name="menu_style">排版</string>
+    <string name="menu_more">更多</string>
     <string name="reader_search_title">搜索正文</string>
     <string name="reader_search_hint">输入关键词</string>
     <string name="reader_search_none">未找到「%1$s」</string>

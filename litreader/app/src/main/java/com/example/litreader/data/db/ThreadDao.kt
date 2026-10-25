@@ -37,7 +37,7 @@ interface ThreadDao {
     @Query("SELECT tid FROM threads WHERE favorite = 1 AND tid IN (:tids)")
     suspend fun favoriteTids(tids: List<String>): List<String>
 
-    @Query("SELECT tid, favorite, readState FROM threads WHERE tid IN (:tids)")
+    @Query("SELECT tid, favorite, readState, favoriteAt FROM threads WHERE tid IN (:tids)")
     suspend fun existingMeta(tids: List<String>): List<TidMeta>
 
     @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND sitePage = :sitePage ORDER BY timestamp DESC")
@@ -61,8 +61,8 @@ interface ThreadDao {
     @Query("SELECT tag, COUNT(*) AS n FROM threads WHERE sourceId = :sourceId AND tag != '' GROUP BY tag ORDER BY n DESC")
     suspend fun tagCounts(sourceId: String): List<TagCount>
 
-    @Query("UPDATE threads SET favorite = :fav WHERE tid = :tid")
-    suspend fun setFavorite(tid: String, fav: Boolean)
+    @Query("UPDATE threads SET favorite = :fav, favoriteAt = :now WHERE tid = :tid")
+    suspend fun setFavorite(tid: String, fav: Boolean, now: Long)
 
     @Query("SELECT favorite FROM threads WHERE tid = :tid")
     suspend fun isFavorite(tid: String): Boolean?
@@ -78,7 +78,7 @@ interface ThreadDao {
 data class TagCount(val tag: String, val n: Int)
 
 /** 帖子标记回读（upsert 前保留收藏/已读状态，Room POJO）。 */
-data class TidMeta(val tid: String, val favorite: Boolean, val readState: Int)
+data class TidMeta(val tid: String, val favorite: Boolean, val readState: Int, val favoriteAt: Long)
 
 @Dao
 interface ThreadContentDao {
