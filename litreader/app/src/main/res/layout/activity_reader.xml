@@ -222,5 +222,17 @@
                 android:id="@+id/btnPad"
                 style="@style/ReaderMenuItem" />
         </LinearLayout>
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <TextView
+                android:id="@+id/btnVolume"
+                style="@style/ReaderMenuItem" />
+            <TextView
+                android:id="@+id/btnAwake"
+                style="@style/ReaderMenuItem" />
+        </LinearLayout>
     </LinearLayout>
 </FrameLayout>

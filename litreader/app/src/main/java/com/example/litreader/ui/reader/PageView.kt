@@ -67,7 +67,12 @@ class PageView @JvmOverloads constructor(
         val l = layout ?: return
         val p = page ?: return
         canvas.save()
-        canvas.clipRect(0f, 0f, width.toFloat(), height.toFloat())
+        // 上下裁到本页首行顶/末行底：共享 StaticLayout 是整篇，
+        // 只裁 padding 矩形挡不住「次页行头渗入本页末尾的剩余空间」，必须按本页行范围裁
+        canvas.clipRect(
+            paddingLeft.toFloat(), paddingTop.toFloat(),
+            (width - paddingRight).toFloat(), paddingTop + (p.bottom - p.top)
+        )
         canvas.translate(paddingLeft.toFloat(), paddingTop - p.top)
         l.draw(canvas)
         canvas.restore()

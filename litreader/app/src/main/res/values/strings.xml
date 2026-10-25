@@ -70,6 +70,9 @@
     <string name="reader_flip_lr">左右</string>
     <string name="reader_scroll">滚动</string>
     <string name="reader_scroll_pos">滚动模式</string>
+    <string name="reader_progress">已读 %1$d%%</string>
+    <string name="reader_volume">音量键 %1$s</string>
+    <string name="reader_awake">常亮 %1$s</string>
     <string name="reader_restored">已回到上次阅读位置</string>
     <string name="reader_empty">此帖暂无可读正文</string>
     <string name="retry">重试</string>

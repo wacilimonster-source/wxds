@@ -9,6 +9,7 @@ import android.text.Spanned
 import android.text.StaticLayout
 import android.text.TextPaint
 import android.view.GestureDetector
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -28,6 +29,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
 import com.example.litreader.App
 import com.example.litreader.R
+import com.example.litreader.data.model.Post
 import com.example.litreader.data.repo.BookRepository
 import com.example.litreader.databinding.ActivityReaderBinding
 import com.example.litreader.ui.detail.ThreadDetailActivity
@@ -95,6 +97,12 @@ class ReaderActivity : AppCompatActivity() {
     private var autoFinish: Boolean
         get() = prefs2.getBoolean("autoFinish", false)
         set(value) = prefs2.edit().putBoolean("autoFinish", value).apply()
+    private var volumeFlip: Boolean
+        get() = prefs2.getBoolean("volumeFlip", true)
+        set(value) = prefs2.edit().putBoolean("volumeFlip", value).apply()
+    private var keepAwake: Boolean
+        get() = prefs2.getBoolean("keepAwake", true)
+        set(value) = prefs2.edit().putBoolean("keepAwake", value).apply()
     private var padIdx: Int
         get() = prefs2.getInt("pad", 1).coerceIn(0, padPresets.size - 1)
         set(value) = prefs2.edit().putInt("pad", value).apply()
@@ -117,12 +125,17 @@ class ReaderActivity : AppCompatActivity() {
         setupMenu()
         setupContainers()
         applyThemeColors()
+        applyKeepAwake()
         load()
     }
 
     // ---------- 数据 ----------
 
     private fun load() {
+        if (tid == MOCK_TID) {  // 视觉验收入口：tid=mock 用内置模拟正文，不联网
+            buildContent(mockPosts())
+            return
+        }
         bind.progress.visibility = View.VISIBLE
         lifecycleScope.launch {
             try {
@@ -157,6 +170,23 @@ class ReaderActivity : AppCompatActivity() {
         }
     }
 
+    // ---------- 模拟数据（tid=mock 时渲染，边距/排版视觉验收用） ----------
+
+    private fun mockPosts(): List<com.example.litreader.data.model.Post> {
+        val a = "这一段模拟正文专门用来检查阅读器边距：上边距处首行不得顶进留白，下边距处末行不得侵入留白，左右留白需要对称，并在紧凑、标准、宽松三档之间切换时同步变化。翻页时上一页的最后一行不能残留在本页的上边距里，本页的第一行也不能探出到上一页的下边距里。"
+        val b = "中文排版按字折行，无论一行以哪个字开头结尾，正文区域都应始终位于上下左右留白之内，页码与进度也按同一区域计算。段落之间的间距与楼层标记的位置同样不能越过留白边界。"
+        val c = "短段落，仅一行。"
+        val mixed = "<p><b>粗体</b>与<i>斜体</i>与<u>下划线</u>与<font color=\"#8B2500\">朱砂色文字</font>混排，再放一张图片：<img src=\"https://example.com/mock1.jpg\">图片之后继续一段普通文字，用来确认图片行前后的行高与边距没有异常跳变。</p>"
+        return listOf(
+            Post(author = "排版验收", floor = 1, contentHtml = "<p>${a.repeat(3)}</p><p>$c</p>$mixed"),
+            Post(author = "排版验收", floor = 2, contentHtml = "<blockquote>引用块：左右缩进叠加在正文边距内，整块使用弱化色，不得突破右侧留白。</blockquote><p>${b.repeat(4)}</p>"),
+            Post(author = "排版验收", floor = 3, contentHtml = "<p>${a.repeat(2)}$b</p><p>$c</p><p>$c</p><p>$c</p>"),
+            Post(author = "排版验收", floor = 4, contentHtml = "<p>${b.repeat(3)}${a.repeat(2)}</p>$mixed"),
+            Post(author = "排版验收", floor = 5, contentHtml = "<p>${a.repeat(4)}</p><p>$c</p>"),
+            Post(author = "排版验收", floor = 6, contentHtml = "<p>${b.repeat(2)}全文完。</p>"),
+        )
+    }
+
     // ---------- 排版与分页 ----------
 
     private fun contentWidth(): Int = max(100, bind.content.width - pads[2] - pads[3])
@@ -179,7 +209,7 @@ class ReaderActivity : AppCompatActivity() {
         val s = spannable ?: return
         applyThemeColors()
         layout = makeLayout(s, contentWidth())
-        pages = Paginator.paginate(layout!!, contentHeight().toFloat())
+        pages = Paginator.paginate(layout!!, contentHeight().toFloat(), textPaint().fontMetrics.descent)
         if (flipMode) {
             setupFlip(restoreOffset)
         } else {
@@ -256,7 +286,12 @@ class ReaderActivity : AppCompatActivity() {
             bind.seek.max = max(1, pages.size - 1)
             bind.seek.progress = bind.pager.currentItem
         } else {
-            bind.tvPagePos.text = getString(R.string.reader_scroll_pos)
+            // 滚动模式：底部显示百分比进度，进度条可拖动定位
+            val h = max(1, bind.scrollText.height - bind.scrollWrap.height)
+            val ratio = (bind.scrollWrap.scrollY.toFloat() / h).coerceIn(0f, 1f)
+            bind.tvPagePos.text = getString(R.string.reader_progress, (ratio * 100).toInt())
+            bind.seek.max = 1000
+            bind.seek.progress = (ratio * 1000).toInt()
         }
     }
 
@@ -266,6 +301,15 @@ class ReaderActivity : AppCompatActivity() {
         bind.pager.visibility = View.GONE
         bind.scrollWrap.visibility = View.GONE
 
+        // 导航栏隐藏/显示会改变内容区高度，必须按新尺寸重新分页，否则页尾多出一片死区
+        bind.content.addOnLayoutChangeListener { v, l, t, r, b, ol, ot, orr, ob ->
+            if (loaded && v.width > 0 && v.height > 0 &&
+                (r - l != orr - ol || b - t != ob - ot)
+            ) {
+                v.post { rebuild(restoreOffset = currentOffset()) }
+            }
+        }
+
         bind.pager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
                 updatePageLabel()
@@ -273,15 +317,23 @@ class ReaderActivity : AppCompatActivity() {
             }
         })
 
-        bind.scrollWrap.setOnScrollChangeListener { _, _, _, _, _ -> maybeAutoFinish() }
+        bind.scrollWrap.setOnScrollChangeListener { _, _, _, _, _ ->
+            updatePageLabel()
+            maybeAutoFinish()
+        }
 
         bind.seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
                 if (!fromUser) return
-                if (flipMode) bind.pager.setCurrentItem(progress, false)
+                if (flipMode) {
+                    bind.pager.setCurrentItem(progress, false)
+                } else {
+                    val h = max(1, bind.scrollText.height - bind.scrollWrap.height)
+                    bind.scrollWrap.scrollTo(0, (progress / 1000f * h).toInt())
+                }
             }
             override fun onStartTrackingTouch(sb: SeekBar) {}
-            override fun onStopTrackingTouch(sb: SeekBar) {}
+            override fun onStopTrackingTouch(sb: SeekBar) = saveProgress()
         })
 
         val tapDetector = GestureDetector(
@@ -298,14 +350,22 @@ class ReaderActivity : AppCompatActivity() {
                         openGallery(hit.url)
                         return true
                     }
-                    toggleMenu()
+                    // 与翻页模式一致的三区：左上滚、右下滚、中间呼出菜单
+                    val w = bind.scrollText.width.toFloat()
+                    when {
+                        e.x < w / 3f -> movePage(-1)
+                        e.x > w * 2f / 3f -> movePage(1)
+                        else -> toggleMenu()
+                    }
                     return true
                 }
             }
         )
+        // 必须消费事件：TextView 不可点击时 onTouchEvent 返回 false，DOWN 被拒后
+        // UP 会改道 ScrollView，GestureDetector 凑不齐手势，中心点击永远无法呼出菜单
         bind.scrollText.setOnTouchListener { _, e ->
             tapDetector.onTouchEvent(e)
-            false
+            true
         }
     }
 
@@ -368,6 +428,15 @@ class ReaderActivity : AppCompatActivity() {
             autoFinish = !autoFinish
             renderAutoFinishLabel()
         }
+        bind.btnVolume.setOnClickListener {
+            volumeFlip = !volumeFlip
+            renderVolumeLabel()
+        }
+        bind.btnAwake.setOnClickListener {
+            keepAwake = !keepAwake
+            applyKeepAwake()
+            renderAwakeLabel()
+        }
         bind.btnFloorJump.setOnClickListener { showFloorJump() }
         bind.btnForum.setOnClickListener { goForum() }
         bind.btnFinished.setOnClickListener {
@@ -380,6 +449,8 @@ class ReaderActivity : AppCompatActivity() {
         renderFlipLabel()
         renderMarksLabel()
         renderAutoFinishLabel()
+        renderVolumeLabel()
+        renderAwakeLabel()
         renderFinishedLabel()
         bind.btnLine.text = getString(R.string.reader_line, trim(lineSpacing))
         bind.btnTheme.text = getString(R.string.reader_theme, theme.label)
@@ -508,6 +579,35 @@ class ReaderActivity : AppCompatActivity() {
         )
     }
 
+    private fun renderVolumeLabel() {
+        bind.btnVolume.text = getString(
+            R.string.reader_volume, getString(if (volumeFlip) R.string.on else R.string.off)
+        )
+    }
+
+    private fun renderAwakeLabel() {
+        bind.btnAwake.text = getString(
+            R.string.reader_awake, getString(if (keepAwake) R.string.on else R.string.off)
+        )
+    }
+
+    /** 阅读时常亮：窗口级 FLAG，离开阅读器自动失效。 */
+    private fun applyKeepAwake() {
+        if (keepAwake) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
+    /** 音量键翻页：翻页模式翻页，滚动模式滚一屏（按住连发）。 */
+    override fun dispatchKeyEvent(ev: KeyEvent): Boolean {
+        if (volumeFlip && loaded) {
+            when (ev.keyCode) {
+                KeyEvent.KEYCODE_VOLUME_UP -> if (ev.action == KeyEvent.ACTION_DOWN) { movePage(-1); return true }
+                KeyEvent.KEYCODE_VOLUME_DOWN -> if (ev.action == KeyEvent.ACTION_DOWN) { movePage(1); return true }
+            }
+        }
+        return super.dispatchKeyEvent(ev)
+    }
+
     /** 自动读完：翻/滚到最后一页且开关打开时标记已读完（仅一次，toast 提示）。 */
     private fun maybeAutoFinish() {
         if (!autoFinish || !loaded || finished) return
@@ -601,5 +701,10 @@ class ReaderActivity : AppCompatActivity() {
         override fun onBindViewHolder(h: PVH, position: Int) {
             h.view.bind(layout, pages[position])
         }
+    }
+
+    companion object {
+        /** tid=mock 时渲染内置模拟正文（边距/排版视觉验收，不联网）。 */
+        const val MOCK_TID = "mock"
     }
 }
