@@ -62,6 +62,7 @@ class ThreadDetailActivity : AppCompatActivity() {
         renderFloorBar()
 
         lifecycleScope.launch {
+            runCatching { repo.markOpened(tid) }
             sourceId = withContext(Dispatchers.IO) {
                 intent.getStringExtra("sourceId")
                     ?: repo.threadSourceId(tid)

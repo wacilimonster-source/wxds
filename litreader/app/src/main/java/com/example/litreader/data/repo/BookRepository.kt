@@ -10,6 +10,7 @@ import com.example.litreader.data.model.ThreadItem
 import com.example.litreader.data.source.CatalogPage
 import com.example.litreader.data.source.SourceRegistry
 import com.example.litreader.data.source.SourceStyle
+import kotlinx.coroutines.delay
 import kotlin.math.ceil
 
 class BookRepository(
@@ -33,7 +34,7 @@ class BookRepository(
         replies = it.replies
     )
 
-    /** 目录页落库：盖 sitePage 章 + 保护已有收藏/已读标记（否则 REPLACE 会重置）。 */
+    /** 目录页落库：盖 sitePage 章 + 保护已有收藏/已读/浏览时间（否则 REPLACE 会重置）。 */
     private suspend fun upsertItems(sourceId: String, page: Int, items: List<ThreadItem>): List<ThreadEntity> {
         if (items.isEmpty()) return emptyList()
         val meta = db.threadDao().existingMeta(items.map { it.tid }).associateBy { it.tid }
@@ -43,7 +44,8 @@ class BookRepository(
                 sitePage = page,
                 favorite = m?.favorite ?: false,
                 readState = m?.readState ?: 0,
-                favoriteAt = m?.favoriteAt ?: 0
+                favoriteAt = m?.favoriteAt ?: 0,
+                lastOpenAt = m?.lastOpenAt ?: 0
             )
         }
         db.threadDao().upsertAll(ents)
@@ -57,10 +59,47 @@ class BookRepository(
     /** 站点总页数（页脚解析值，抓取时刷新）。 */
     fun sitePageCount(sourceId: String): Int = prefs?.getInt("site_pages_$sourceId", 0) ?: 0
 
+    /** 实测有效页深（页脚值虚高：站点归档早期帖子，深页返回空壳）。0=未探测。 */
+    fun validPageCount(sourceId: String): Int = prefs?.getInt("valid_pages_$sourceId", 0) ?: 0
+
+    fun saveValidPages(sourceId: String, pages: Int) {
+        if (pages > 0) prefs?.edit()?.putInt("valid_pages_$sourceId", pages)?.apply()
+    }
+
+    /**
+     * 二分探测最大有效页（low 已知有效、high 已知无效，不含端点）。
+     * 每页走 loadList（带重试），顺带把有效页缓存入库。返回最大有效页。
+     */
+    suspend fun probeValidPages(sourceId: String, lowValid: Int, highInvalid: Int): Int {
+        var lo = maxOf(1, lowValid)
+        var hi = highInvalid
+        while (hi - lo > 1) {
+            val mid = (lo + hi) / 2
+            var rows = loadList(sourceId, mid, "")
+            if (rows.isEmpty()) rows = loadList(sourceId, mid, "")  // 防瞬时空壳：再抓一次确认
+            if (rows.isNotEmpty()) lo = mid else hi = mid
+        }
+        return lo
+    }
+
+    /** 目录单页抓取重试：站点时通时断，瞬时抖动重试 2 次再算失败。 */
+    private suspend fun <T> withRetry(times: Int = 3, block: suspend () -> T): T {
+        var last: Exception? = null
+        repeat(times) { attempt ->
+            try {
+                return block()
+            } catch (e: Exception) {
+                last = e
+                if (attempt < times - 1) delay(1000L * (attempt + 1))
+            }
+        }
+        throw last ?: IllegalStateException("retry failed")
+    }
+
     /** 在线拉取一页列表并入库。 */
     suspend fun loadList(sourceId: String, page: Int, category: String = ""): List<ThreadEntity> {
         val src = source(sourceId)
-        val cp = src.getCatalogPage(page, category)
+        val cp = withRetry { src.getCatalogPage(page, category) }
         rememberSitePages(sourceId, cp.totalPages)
         return upsertItems(src.id, page, cp.items)
     }
@@ -81,9 +120,10 @@ class BookRepository(
      * 贴图区分页：页码与站点对齐（100 条/页）。
      * 本地没有该页 → 实时抓取落库；看过的页秒开、离线可回看。
      * forceRefresh 时重抓该页（upsert 自动保留收藏/已读），并清理已从站点消失的非收藏残留。
+     * 本地还不知道站点总页数时也强制抓一次（自愈：否则缓存页永远拿不到页脚总页数）。
      */
     suspend fun galleryPage(sourceId: String, page: Int, forceRefresh: Boolean = false): List<ThreadEntity> {
-        if (forceRefresh) {
+        if (forceRefresh || sitePageCount(sourceId) <= 0) {
             val fresh = loadList(sourceId, page, "")
             db.threadDao().deleteStaleBySitePage(sourceId, page, fresh.map { it.tid })
             return db.threadDao().bySitePage(sourceId, page)
@@ -111,7 +151,7 @@ class BookRepository(
         var page = 1
         var totalPages = 0
         while (page <= MAX_SYNC_PAGES) {
-            val cp: CatalogPage = src.getCatalogPage(page, "")
+            val cp: CatalogPage = withRetry { src.getCatalogPage(page, "") }
             if (cp.totalPages > totalPages) totalPages = cp.totalPages
             rememberSitePages(sourceId, cp.totalPages)
             val tids = cp.items.map { it.tid }
@@ -148,6 +188,20 @@ class BookRepository(
         if (filter == null) db.threadDao().favoritesAll()
         else db.threadDao().favorites(filter)
 
+    /** 最近浏览（收藏的不重复出现）；filter 为 null 时跨区。 */
+    suspend fun recents(filter: String?): List<ThreadEntity> =
+        if (filter == null) db.threadDao().recentsAll(RECENT_KEEP)
+        else db.threadDao().recents(filter, RECENT_KEEP)
+
+    /** 打开帖子即记浏览时间，并把超出上限的旧记录挤出「最近」。 */
+    suspend fun markOpened(tid: String) {
+        db.threadDao().markOpened(tid, System.currentTimeMillis())
+        db.threadDao().trimRecents(RECENT_KEEP)
+    }
+
+    /** 清空最近浏览（只清时间戳，不动帖子数据）。 */
+    suspend fun clearRecents() = db.threadDao().clearRecents()
+
     suspend fun categoryCount(sourceId: String, category: String, tag: String = "", readFilter: Int = -1): Int =
         if (category.isEmpty() && tag.isEmpty() && readFilter == -1) db.threadDao().totalCount(sourceId)
         else db.threadDao().countByCategory(sourceId, category, tag, readFilter)
@@ -162,9 +216,10 @@ class BookRepository(
 
     suspend fun readState(tid: String): Int = db.threadDao().byId(tid)?.readState ?: 0
 
-    /** 跨区本地搜索（搜的是已缓存进库的标题）。 */
-    suspend fun search(q: String): List<ThreadEntity> =
-        db.threadDao().searchAll("%$q%")
+    /** 本地标题搜索（已入库缓存）；filter 为 null 时跨区，否则限单区。 */
+    suspend fun search(q: String, filter: String?): List<ThreadEntity> =
+        if (filter == null) db.threadDao().searchAll("%$q%")
+        else db.threadDao().search(filter, "%$q%")
 
     suspend fun setFavorite(tid: String, fav: Boolean) =
         db.threadDao().setFavorite(tid, fav, System.currentTimeMillis())
@@ -216,5 +271,7 @@ class BookRepository(
         const val PAGE_SIZE = 30
         /** 目录全量同步的页数上限（fid=20 当前 68 页，留足余量） */
         const val MAX_SYNC_PAGES = 300
+        /** 「最近浏览」保留条数上限 */
+        const val RECENT_KEEP = 100
     }
 }

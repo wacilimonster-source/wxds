@@ -22,5 +22,7 @@ data class ThreadEntity(
     val readState: Int = 0,
     val favorite: Boolean = false,
     /** 收藏时间（收藏先后排序用；旧数据为 0 排在末尾） */
-    val favoriteAt: Long = 0
+    val favoriteAt: Long = 0,
+    /** 最近一次打开时间（书架「最近浏览」用；0=未浏览过） */
+    val lastOpenAt: Long = 0
 )

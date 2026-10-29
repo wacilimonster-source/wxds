@@ -11,8 +11,8 @@ android {
         applicationId "com.example.litreader"
         minSdk 24
         targetSdk 34
-        versionCode 18
-        versionName "0.17"
+        versionCode 19
+        versionName "0.18"
     }
     buildFeatures {
         viewBinding true

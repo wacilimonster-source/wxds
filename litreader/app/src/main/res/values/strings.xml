@@ -3,8 +3,12 @@
     <string name="app_title">食色也</string>
     <string name="search">搜索</string>
     <string name="search_hint">搜索已缓存的帖子标题…</string>
+    <string name="search_sort_new">最新</string>
+    <string name="search_sort_likes">最多点赞</string>
+    <string name="search_sort_replies">最多回复</string>
     <string name="favorites">收藏</string>
     <string name="check_update">检查更新</string>
+    <string name="current_version">当前版本 v%1$s</string>
     <string name="more">更多</string>
     <string name="prev_page">上一页</string>
     <string name="next_page">下一页</string>
@@ -15,6 +19,8 @@
     <string name="empty_gallery_hint">下拉刷新，或点右下角「刷新」拉取最新帖子</string>
     <string name="empty_fav_title">收藏夹还是空的</string>
     <string name="empty_fav_hint">在列表里长按帖子即可收藏</string>
+    <string name="empty_recent_title">还没有浏览记录</string>
+    <string name="empty_recent_hint">打开过的帖子会出现在这里，接着上次的进度读</string>
     <string name="only_op">只看楼主</string>
     <string name="see_all">看全部</string>
     <string name="font_up">放大字号</string>
@@ -26,8 +32,12 @@
 
     <string name="tab_lit">文学</string>
     <string name="tab_img">贴图</string>
-    <string name="tab_fav">收藏</string>
-    <string name="favorites_title">收藏夹</string>
+    <string name="tab_fav">书架</string>
+    <string name="favorites_title">书架</string>
+    <string name="section_recent">最近</string>
+    <string name="section_fav">收藏</string>
+    <string name="clear_recent">清空</string>
+    <string name="clear_recent_confirm">清空全部最近浏览记录？帖子与收藏不受影响。</string>
     <string name="fav_sort">排序</string>
     <string name="fav_sort_fav">收藏先后</string>
     <string name="fav_sort_time">帖子时间</string>
@@ -46,6 +56,7 @@
 
     <string name="sync_progress">同步目录 %1$d/%2$d 页 · 新增 %3$d 条</string>
     <string name="sync_failed">目录同步失败：%1$s</string>
+    <string name="gallery_archived">站点已归档更早的帖子，已回到第 %1$d 页</string>
 
     <string name="filter_unread">未读</string>
     <string name="filter_read">已读</string>
@@ -78,8 +89,6 @@
     <string name="reader_volume">音量键 %1$s</string>
     <string name="reader_awake">常亮 %1$s</string>
 
-    <string name="continue_reading">继续阅读</string>
-    <string name="continue_last">上次看到 %1$d%%</string>
     <string name="item_progress">读到 %1$d%%</string>
 
     <string name="menu_style">排版</string>

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.text.InputType
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -29,6 +30,8 @@ import com.example.litreader.data.source.SourceStyle
 import com.example.litreader.databinding.FragmentListBinding
 import com.example.litreader.ui.detail.ThreadDetailActivity
 import com.example.litreader.ui.search.SearchActivity
+import com.example.litreader.util.Constants
+import com.example.litreader.util.ReadProgress
 import com.example.litreader.util.UpdateManager
 
 /** 文学/贴图共用的列表页，按 sourceId 区分数据源。 */
@@ -60,7 +63,12 @@ class ThreadListFragment : Fragment() {
         bind.tvTitle.text = source.name
 
         vm = ViewModelProvider(
-            this, ThreadListVmFactory((requireActivity().application as App).database, source.id)
+            this,
+            ThreadListVmFactory(
+                (requireActivity().application as App).database,
+                requireActivity().getSharedPreferences("catalog", Context.MODE_PRIVATE),
+                source.id
+            )
         )[ThreadListViewModel::class.java]
         adapter = ThreadAdapter({ open(it) }, { vm.toggleFavorite(it) })
         bind.recycler.layoutManager = LinearLayoutManager(requireContext())
@@ -92,7 +100,7 @@ class ThreadListFragment : Fragment() {
         bind.tvPage.setOnClickListener { showJumpDialog() }
         bind.tvPage.contentDescription = getString(R.string.jump_page)
         bind.btnSearch.setOnClickListener { startActivity(Intent(requireContext(), SearchActivity::class.java)) }
-        bind.btnMore.setOnClickListener { showMoreMenu(view) }
+        bind.btnMore.setOnClickListener { showMoreMenu(bind.btnMore) }
 
         vm.threads.observe(viewLifecycleOwner) { list ->
             adapter.submit(list, readProgressMap())
@@ -113,11 +121,19 @@ class ThreadListFragment : Fragment() {
             if (!loading) bind.swipe.isRefreshing = false
             bind.progress.visibility = if (loading && !bind.swipe.isRefreshing) View.VISIBLE else View.GONE
             bind.btnPrev.isEnabled = !loading && vm.page > 1
-            bind.btnNext.isEnabled = !loading
+            bind.btnNext.isEnabled = !loading && vm.page < vm.totalPages
             renderPageLabel()
         }
         vm.error.observe(viewLifecycleOwner) { msg ->
             if (msg != null) Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+        }
+        vm.archivedNotice.observe(viewLifecycleOwner) { valid ->
+            if (valid > 0) {
+                Toast.makeText(
+                    requireContext(), getString(R.string.gallery_archived, valid), Toast.LENGTH_LONG
+                ).show()
+                vm.clearArchivedNotice()
+            }
         }
 
         vm.load(1)
@@ -127,8 +143,7 @@ class ThreadListFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        // 从阅读器/详情返回时刷新已读标记、继续阅读卡片（本地读取，开销极小）；首次进入不重复加载
-        renderContinueCard()
+        // 从阅读器/详情返回时刷新已读标记（本地读取，开销极小）；首次进入不重复加载
         if (firstResume) {
             firstResume = false
             return
@@ -136,42 +151,8 @@ class ThreadListFragment : Fragment() {
         if (this::vm.isInitialized) vm.load(vm.page)
     }
 
-    /** 「继续阅读」卡片：最近一次开始读的帖子 + 进度，一键回到阅读器。 */
-    private fun renderContinueCard() {
-        if (!isText || !this::bind.isInitialized) return
-        val raw = requireActivity()
-            .getSharedPreferences("reader_pos", Context.MODE_PRIVATE)
-            .getString("last", null)
-        val parts = raw?.split("\u0001") ?: emptyList()
-        if (parts.size < 4) {
-            bind.continueCard.visibility = View.GONE
-            return
-        }
-        val (tid, sourceId, title, ratio) = parts
-        bind.tvContinueTitle.text = title
-        bind.tvContinueProgress.text =
-            getString(R.string.continue_last, ((ratio.toFloatOrNull() ?: 0f) * 100).toInt())
-        bind.continueCard.visibility = View.VISIBLE
-        bind.continueCard.setOnClickListener {
-            startActivity(Intent(requireContext(), com.example.litreader.ui.reader.ReaderActivity::class.java).apply {
-                putExtra("tid", tid)
-                putExtra("title", title)
-                putExtra("sourceId", sourceId)
-            })
-        }
-    }
-
     /** tid → 已读比例（0<ratio≤1），供列表卡片显示「读到 N%」。 */
-    private fun readProgressMap(): Map<String, Float> {
-        val map = HashMap<String, Float>()
-        for ((k, v) in requireActivity()
-            .getSharedPreferences("reader_pos", Context.MODE_PRIVATE).all) {
-            if (!k.startsWith("pos_")) continue
-            val ratio = (v as? String)?.split(":")?.getOrNull(1)?.toFloatOrNull() ?: continue
-            if (ratio > 0.005f) map[k.removePrefix("pos_")] = ratio
-        }
-        return map
-    }
+    private fun readProgressMap(): Map<String, Float> = ReadProgress.map(requireActivity())
 
     /** 手动刷新：文学区走目录增量同步（完成回调里会重载列表），贴图区沿用在线补页。 */
     private fun onManualRefresh() {
@@ -292,11 +273,18 @@ class ThreadListFragment : Fragment() {
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     private fun showMoreMenu(anchor: View) {
-        val popup = PopupMenu(requireContext(), anchor)
-        popup.menu.add(getString(R.string.check_update))
-        popup.setOnMenuItemClickListener {
-            UpdateManager.checkAndPromptUpdate(requireActivity(), lifecycleScope, silent = false)
-            true
+        val popup = PopupMenu(requireContext(), anchor, Gravity.END)
+        popup.menu.add(0, MENU_VERSION, 0, getString(R.string.current_version, Constants.VERSION_NAME))
+            .isEnabled = false
+        popup.menu.add(0, MENU_CHECK_UPDATE, 1, getString(R.string.check_update))
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                MENU_CHECK_UPDATE -> {
+                    UpdateManager.checkAndPromptUpdate(requireActivity(), lifecycleScope, silent = false)
+                    true
+                }
+                else -> false
+            }
         }
         popup.show()
     }
@@ -309,6 +297,8 @@ class ThreadListFragment : Fragment() {
 
     companion object {
         private const val ARG_SOURCE = "sourceId"
+        private const val MENU_VERSION = 1
+        private const val MENU_CHECK_UPDATE = 2
         fun newInstance(sourceId: String) = ThreadListFragment().apply {
             arguments = Bundle().apply { putString(ARG_SOURCE, sourceId) }
         }

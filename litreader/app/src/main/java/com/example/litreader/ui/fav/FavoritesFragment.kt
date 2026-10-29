@@ -1,12 +1,12 @@
 package com.example.litreader.ui.fav
 
 import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.PopupMenu
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -14,16 +14,17 @@ import com.example.litreader.App
 import com.example.litreader.R
 import com.example.litreader.data.db.ThreadEntity
 import com.example.litreader.databinding.FragmentFavoritesBinding
-import com.example.litreader.ui.detail.ThreadDetailActivity
 import com.example.litreader.ui.list.ThreadAdapter
 import com.example.litreader.ui.main.MainActivity
+import com.example.litreader.util.ReadProgress
 
+/** 书架：最近浏览 + 收藏 两段共用一个列表，段内筛选/排序独立。 */
 class FavoritesFragment : Fragment() {
     private lateinit var bind: FragmentFavoritesBinding
     private lateinit var vm: FavoritesViewModel
     private lateinit var adapter: ThreadAdapter
 
-    /** 0=收藏先后 1=帖子时间 2=标题 */
+    /** 0=收藏先后 1=帖子时间 2=标题（仅收藏段） */
     private var sortMode = 0
 
     override fun onCreateView(
@@ -43,8 +44,21 @@ class FavoritesFragment : Fragment() {
         bind.recycler.layoutManager = LinearLayoutManager(requireContext())
         bind.recycler.adapter = adapter
 
-        sortMode = requireActivity()
-            .getSharedPreferences("fav", Context.MODE_PRIVATE).getInt("sort", 0)
+        val prefs = requireActivity().getSharedPreferences("fav", Context.MODE_PRIVATE)
+        sortMode = prefs.getInt("sort", 0)
+        // 段持久化：0=最近 1=收藏；首次安装默认停在收藏段
+        vm.sectionFavorites = prefs.getInt("section", 1) == 1
+
+        bind.sectionGroup.check(if (vm.sectionFavorites) R.id.btnSectionFav else R.id.btnSectionRecent)
+        bind.sectionGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (!isChecked) return@addOnButtonCheckedListener
+            val favorites = checkedId == R.id.btnSectionFav
+            if (favorites != vm.sectionFavorites) {
+                prefs.edit().putInt("section", if (favorites) 1 else 0).apply()
+                vm.setSection(favorites)
+                renderSectionUi()
+            }
+        }
 
         bind.filterGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (!isChecked) return@addOnButtonCheckedListener
@@ -58,9 +72,14 @@ class FavoritesFragment : Fragment() {
         }
 
         bind.tvFavSort.setOnClickListener { showSortMenu() }
+        bind.tvFavClear.setOnClickListener { confirmClearRecents() }
+        renderSectionUi()
 
         vm.threads.observe(viewLifecycleOwner) { list ->
-            adapter.submit(sort(list))
+            adapter.submit(
+                if (vm.sectionFavorites) sort(list) else list,
+                ReadProgress.map(requireActivity())
+            )
             bind.emptyBox.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
         }
         vm.loading.observe(viewLifecycleOwner) {
@@ -68,7 +87,30 @@ class FavoritesFragment : Fragment() {
         }
     }
 
-    /** 排序菜单：收藏先后 / 帖子时间 / 标题，选择持久化。 */
+    /** 段切换后的按钮与空态文案（列表数据由 vm 负责）。 */
+    private fun renderSectionUi() {
+        val favorites = vm.sectionFavorites
+        bind.tvFavSort.visibility = if (favorites) View.VISIBLE else View.GONE
+        bind.tvFavClear.visibility = if (favorites) View.GONE else View.VISIBLE
+        bind.tvEmptyTitle.setText(
+            if (favorites) R.string.empty_fav_title else R.string.empty_recent_title
+        )
+        bind.tvEmptyHint.setText(
+            if (favorites) R.string.empty_fav_hint else R.string.empty_recent_hint
+        )
+        adapter.highlightFirst = !favorites
+    }
+
+    private fun confirmClearRecents() {
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.clear_recent)
+            .setMessage(R.string.clear_recent_confirm)
+            .setPositiveButton(R.string.clear_recent) { _, _ -> vm.clearRecents() }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    /** 排序菜单：收藏先后 / 帖子时间 / 标题，选择持久化（仅收藏段）。 */
     private fun showSortMenu() {
         val popup = PopupMenu(requireContext(), bind.tvFavSort)
         val labels = listOf(

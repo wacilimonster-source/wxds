@@ -21,6 +21,9 @@ class ThreadAdapter(
     private var data = listOf<ThreadEntity>()
     private var progress: Map<String, Float> = emptyMap()
 
+    /** 书架「最近」段：第 1 行用 accent 描边标记为「继续阅读」卡。 */
+    var highlightFirst: Boolean = false
+
     fun submit(list: List<ThreadEntity>) = submit(list, progress)
 
     fun submit(list: List<ThreadEntity>, progressMap: Map<String, Float>) {
@@ -109,5 +112,9 @@ class ThreadAdapter(
             h.b.tvLikes.visibility = View.VISIBLE
             h.b.tvLikes.text = t.likes
         }
+
+        h.b.root.strokeColor = ContextCompat.getColor(
+            ctx, if (highlightFirst && i == 0) R.color.accent else R.color.divider
+        )
     }
 }

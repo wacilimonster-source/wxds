@@ -156,6 +156,8 @@ class ReaderActivity : AppCompatActivity() {
     // ---------- 数据 ----------
 
     private fun load() {
+        // 打开即记入「最近浏览」（行不存在时为 no-op；mock 行已入库，同样生效）
+        lifecycleScope.launch { runCatching { repo.markOpened(tid) } }
         if (tid == MOCK_TID) {  // 视觉验收入口：tid=mock 用内置模拟正文，不联网
             buildContent(mockPosts())
             return

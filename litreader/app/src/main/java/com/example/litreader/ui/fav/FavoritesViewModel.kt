@@ -16,17 +16,35 @@ class FavoritesViewModel(private val repo: BookRepository) : ViewModel() {
     /** null = 全部区；否则为 sourceId。 */
     var filter: String? = null
 
+    /** false=最近（浏览记录） true=收藏 */
+    var sectionFavorites: Boolean = true
+
     fun applyFilter(f: String?) {
         filter = f
+        load()
+    }
+
+    fun setSection(favorites: Boolean) {
+        if (sectionFavorites == favorites) return
+        sectionFavorites = favorites
         load()
     }
 
     fun load() {
         _loading.value = true
         viewModelScope.launch {
-            try { _threads.value = repo.favorites(filter) }
-            catch (_: Exception) {}
+            try {
+                _threads.value = if (sectionFavorites) repo.favorites(filter) else repo.recents(filter)
+            } catch (_: Exception) {}
             finally { _loading.value = false }
+        }
+    }
+
+    /** 清空最近浏览（仅最近段入口）。 */
+    fun clearRecents() {
+        viewModelScope.launch {
+            try { repo.clearRecents() } catch (_: Exception) {}
+            load()
         }
     }
 

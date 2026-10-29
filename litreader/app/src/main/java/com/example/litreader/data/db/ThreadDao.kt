@@ -22,6 +22,13 @@ interface ThreadDao {
     @Query("SELECT * FROM threads WHERE favorite = 1 ORDER BY timestamp DESC")
     suspend fun favoritesAll(): List<ThreadEntity>
 
+    /** 最近浏览（收藏的不重复出现），按打开时间倒序，条数由 repo 层上限控制。 */
+    @Query("SELECT * FROM threads WHERE lastOpenAt > 0 AND favorite = 0 ORDER BY lastOpenAt DESC LIMIT :limit")
+    suspend fun recentsAll(limit: Int): List<ThreadEntity>
+
+    @Query("SELECT * FROM threads WHERE lastOpenAt > 0 AND favorite = 0 AND sourceId = :sourceId ORDER BY lastOpenAt DESC LIMIT :limit")
+    suspend fun recents(sourceId: String, limit: Int): List<ThreadEntity>
+
     @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND title LIKE :q ORDER BY timestamp DESC")
     suspend fun search(sourceId: String, q: String): List<ThreadEntity>
 
@@ -37,7 +44,7 @@ interface ThreadDao {
     @Query("SELECT tid FROM threads WHERE favorite = 1 AND tid IN (:tids)")
     suspend fun favoriteTids(tids: List<String>): List<String>
 
-    @Query("SELECT tid, favorite, readState, favoriteAt FROM threads WHERE tid IN (:tids)")
+    @Query("SELECT tid, favorite, readState, favoriteAt, lastOpenAt FROM threads WHERE tid IN (:tids)")
     suspend fun existingMeta(tids: List<String>): List<TidMeta>
 
     @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND sitePage = :sitePage ORDER BY timestamp DESC")
@@ -64,6 +71,16 @@ interface ThreadDao {
     @Query("UPDATE threads SET favorite = :fav, favoriteAt = :now WHERE tid = :tid")
     suspend fun setFavorite(tid: String, fav: Boolean, now: Long)
 
+    @Query("UPDATE threads SET lastOpenAt = :now WHERE tid = :tid")
+    suspend fun markOpened(tid: String, now: Long)
+
+    /** 只保留最近 :keep 条浏览记录，更旧的把 lastOpenAt 置 0（不动帖子数据）。 */
+    @Query("UPDATE threads SET lastOpenAt = 0 WHERE lastOpenAt > 0 AND tid NOT IN (SELECT tid FROM threads WHERE lastOpenAt > 0 ORDER BY lastOpenAt DESC LIMIT :keep)")
+    suspend fun trimRecents(keep: Int)
+
+    @Query("UPDATE threads SET lastOpenAt = 0 WHERE lastOpenAt > 0")
+    suspend fun clearRecents()
+
     @Query("SELECT favorite FROM threads WHERE tid = :tid")
     suspend fun isFavorite(tid: String): Boolean?
 
@@ -77,8 +94,8 @@ interface ThreadDao {
 /** 标签聚合结果（Room POJO）。 */
 data class TagCount(val tag: String, val n: Int)
 
-/** 帖子标记回读（upsert 前保留收藏/已读状态，Room POJO）。 */
-data class TidMeta(val tid: String, val favorite: Boolean, val readState: Int, val favoriteAt: Long)
+/** 帖子标记回读（upsert 前保留收藏/已读/浏览时间，Room POJO）。 */
+data class TidMeta(val tid: String, val favorite: Boolean, val readState: Int, val favoriteAt: Long, val lastOpenAt: Long)
 
 @Dao
 interface ThreadContentDao {
