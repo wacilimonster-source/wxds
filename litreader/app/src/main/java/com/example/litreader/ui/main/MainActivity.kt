@@ -12,6 +12,7 @@ import com.example.litreader.ui.fav.FavoritesFragment
 import com.example.litreader.ui.list.CatalogSyncViewModel
 import com.example.litreader.ui.list.CatalogSyncVmFactory
 import com.example.litreader.ui.list.ThreadListFragment
+import com.example.litreader.ui.search.SearchFragment
 import com.example.litreader.util.UpdateManager
 
 class MainActivity : AppCompatActivity() {
@@ -27,6 +28,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.tab_lit -> { show(TAG_LIT); true }
                 R.id.tab_img -> { show(TAG_IMG); true }
                 R.id.tab_fav -> { show(TAG_FAV); true }
+                R.id.tab_search -> { show(TAG_SEARCH); true }
                 else -> false
             }
         }
@@ -50,7 +52,7 @@ class MainActivity : AppCompatActivity() {
     private fun show(tag: String) {
         val fm = supportFragmentManager
         val tx = fm.beginTransaction()
-        listOf(TAG_LIT, TAG_IMG, TAG_FAV)
+        listOf(TAG_LIT, TAG_IMG, TAG_FAV, TAG_SEARCH)
             .mapNotNull { fm.findFragmentByTag(it) }
             .forEach { tx.hide(it) }
         val existing = fm.findFragmentByTag(tag)
@@ -62,9 +64,21 @@ class MainActivity : AppCompatActivity() {
         tx.commit()
     }
 
+    /** 列表页放大镜入口：切到搜索页签；focus=true 时聚焦输入框并弹键盘。 */
+    fun openSearch(focus: Boolean) {
+        if (bind.bottomNav.selectedItemId != R.id.tab_search) {
+            bind.bottomNav.selectedItemId = R.id.tab_search
+            supportFragmentManager.executePendingTransactions()
+        }
+        if (focus) {
+            (supportFragmentManager.findFragmentByTag(TAG_SEARCH) as? SearchFragment)?.focusInput()
+        }
+    }
+
     private fun create(tag: String): Fragment = when (tag) {
         TAG_IMG -> ThreadListFragment.newInstance(SECTION_IMG)
         TAG_FAV -> FavoritesFragment()
+        TAG_SEARCH -> SearchFragment()
         else -> ThreadListFragment.newInstance(SECTION_LIT)
     }
 
@@ -74,5 +88,6 @@ class MainActivity : AppCompatActivity() {
         private const val TAG_LIT = "lit"
         private const val TAG_IMG = "img"
         private const val TAG_FAV = "fav"
+        private const val TAG_SEARCH = "search"
     }
 }

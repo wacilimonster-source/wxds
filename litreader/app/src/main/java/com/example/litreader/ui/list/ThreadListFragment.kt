@@ -1,7 +1,6 @@
 package com.example.litreader.ui.list
 
 import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
@@ -29,7 +28,6 @@ import com.example.litreader.data.source.SourceRegistry
 import com.example.litreader.data.source.SourceStyle
 import com.example.litreader.databinding.FragmentListBinding
 import com.example.litreader.ui.detail.ThreadDetailActivity
-import com.example.litreader.ui.search.SearchActivity
 import com.example.litreader.util.Constants
 import com.example.litreader.util.ReadProgress
 import com.example.litreader.util.UpdateManager
@@ -99,7 +97,9 @@ class ThreadListFragment : Fragment() {
         bind.btnNext.setOnClickListener { vm.nextPage() }
         bind.tvPage.setOnClickListener { showJumpDialog() }
         bind.tvPage.contentDescription = getString(R.string.jump_page)
-        bind.btnSearch.setOnClickListener { startActivity(Intent(requireContext(), SearchActivity::class.java)) }
+        bind.btnSearch.setOnClickListener {
+            (requireActivity() as? com.example.litreader.ui.main.MainActivity)?.openSearch(focus = true)
+        }
         bind.btnMore.setOnClickListener { showMoreMenu(bind.btnMore) }
 
         vm.threads.observe(viewLifecycleOwner) { list ->

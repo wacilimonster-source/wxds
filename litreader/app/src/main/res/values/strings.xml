@@ -33,6 +33,7 @@
     <string name="tab_lit">文学</string>
     <string name="tab_img">贴图</string>
     <string name="tab_fav">书架</string>
+    <string name="tab_search">搜索</string>
     <string name="favorites_title">书架</string>
     <string name="section_recent">最近</string>
     <string name="section_fav">收藏</string>

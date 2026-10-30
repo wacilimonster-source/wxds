@@ -1,12 +1,16 @@
 package com.example.litreader.ui.search
 
+import android.content.SharedPreferences
 import androidx.lifecycle.*
 import com.example.litreader.data.db.AppDatabase
 import com.example.litreader.data.db.ThreadEntity
 import com.example.litreader.data.repo.BookRepository
 import kotlinx.coroutines.launch
 
-class SearchViewModel(private val repo: BookRepository) : ViewModel() {
+class SearchViewModel(
+    private val repo: BookRepository,
+    private val prefs: SharedPreferences
+) : ViewModel() {
     private val _threads = MutableLiveData<List<ThreadEntity>>()
     val threads: LiveData<List<ThreadEntity>> = _threads
 
@@ -24,12 +28,14 @@ class SearchViewModel(private val repo: BookRepository) : ViewModel() {
 
     fun search(q: String) {
         query = q
+        persist()
         reload()
     }
 
     fun applyFilter(f: String?) {
         if (filter == f) return
         filter = f
+        persist()
         if (query.isNotEmpty()) reload()
     }
 
@@ -37,8 +43,21 @@ class SearchViewModel(private val repo: BookRepository) : ViewModel() {
     fun applySort(mode: Int) {
         if (sortMode == mode) return
         sortMode = mode
+        persist()
         val cur = _threads.value ?: return
         _threads.value = sortResults(cur)
+    }
+
+    /** 上次搜索的关键词（App 重启/页面重建后恢复用）。 */
+    fun lastQuery(): String = prefs.getString("last_query", "") ?: ""
+
+    /** 每次搜索/切区/切排序落盘，保证切换页签或重启后记录不丢。 */
+    private fun persist() {
+        prefs.edit()
+            .putString("last_query", query)
+            .putString("zone", filter ?: "")
+            .putInt("sort", sortMode)
+            .apply()
     }
 
     private fun reload() {
@@ -76,6 +95,9 @@ class SearchViewModel(private val repo: BookRepository) : ViewModel() {
     }
 }
 
-class SearchVmFactory(private val db: AppDatabase) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(m: Class<T>): T = SearchViewModel(BookRepository(db)) as T
+class SearchVmFactory(
+    private val db: AppDatabase,
+    private val prefs: SharedPreferences
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(m: Class<T>): T = SearchViewModel(BookRepository(db), prefs) as T
 }
