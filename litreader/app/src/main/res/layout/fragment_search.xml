@@ -37,6 +37,23 @@
             android:background="?attr/selectableItemBackgroundBorderless" />
     </LinearLayout>
 
+    <!-- 搜索历史（输入框为空且有过搜索时显示）：点击即搜，长按删除 -->
+    <HorizontalScrollView
+        android:id="@+id/historyBar"
+        android:scrollbars="none"
+        android:visibility="gone"
+        android:paddingStart="20dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="6dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <LinearLayout
+            android:id="@+id/historyRow"
+            android:orientation="horizontal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </HorizontalScrollView>
+
     <!-- 区筛选 + 排序（有搜索词后出现） -->
     <LinearLayout
         android:id="@+id/filterBar"

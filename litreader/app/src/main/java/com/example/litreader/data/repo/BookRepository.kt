@@ -10,6 +10,9 @@ import com.example.litreader.data.model.ThreadItem
 import com.example.litreader.data.source.CatalogPage
 import com.example.litreader.data.source.SourceRegistry
 import com.example.litreader.data.source.SourceStyle
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlin.math.ceil
 
@@ -138,7 +141,7 @@ class BookRepository(
 
     /**
      * 文学区目录同步（只抓列表元数据，不含正文）：
-     * - 未完成过全量：逐页拉到最后一页，成功后打 crawled 标记（中断后下次自动重来）
+     * - 未完成过全量：3 页一批并发抓取、按序入库（首次全量约 1 分钟，串行需 3-4 分钟）
      * - 已全量过：从第 1 页往下增量，新帖只会出现在顶部，遇到整页已知帖即停
      * 每页照常 upsert，顺带刷新已知帖的赞数/回复/最后回帖时间。
      */
@@ -147,22 +150,54 @@ class BookRepository(
         val crawledKey = "catalog_crawled_$sourceId"
         cleanupLegacyTags(sourceId)
         val fullCrawl = prefs?.getBoolean(crawledKey, false) != true
-        var totalNew = 0
-        var page = 1
-        var totalPages = 0
-        while (page <= MAX_SYNC_PAGES) {
-            val cp: CatalogPage = withRetry { src.getCatalogPage(page, "") }
-            if (cp.totalPages > totalPages) totalPages = cp.totalPages
-            rememberSitePages(sourceId, cp.totalPages)
-            val tids = cp.items.map { it.tid }
+
+        suspend fun upsertPage(page: Int, items: List<ThreadItem>): Int {
+            val tids = items.map { it.tid }
             val known = if (tids.isEmpty()) emptySet() else db.threadDao().existingTids(tids).toSet()
-            val newOnPage = cp.items.count { it.tid !in known }
-            totalNew += newOnPage
-            upsertItems(src.id, page, cp.items)
-            onProgress(SyncProgress(page, totalPages, totalNew))
-            if (!fullCrawl && newOnPage == 0) break
-            if (totalPages in 1..page) break
-            page++
+            val newOnPage = items.count { it.tid !in known }
+            upsertItems(src.id, page, items)
+            return newOnPage
+        }
+
+        // 第 1 页先行：解析总页数（页脚），增量模式整页已知即完成
+        val first = withRetry { src.getCatalogPage(1, "") }
+        var totalPages = first.totalPages
+        rememberSitePages(sourceId, totalPages)
+        var totalNew = upsertPage(1, first.items)
+        onProgress(SyncProgress(1, totalPages, totalNew))
+        val lastPage = minOf(MAX_SYNC_PAGES, if (totalPages > 0) totalPages else MAX_SYNC_PAGES)
+
+        if (!fullCrawl) {
+            // 增量：新帖只在顶部，逐页往下直到整页已知
+            var page = 2
+            while (page <= lastPage) {
+                val cp = withRetry { src.getCatalogPage(page, "") }
+                if (cp.totalPages > totalPages) totalPages = cp.totalPages
+                rememberSitePages(sourceId, cp.totalPages)
+                val newOnPage = upsertPage(page, cp.items)
+                totalNew += newOnPage
+                onProgress(SyncProgress(page, totalPages, totalNew))
+                if (newOnPage == 0) break
+                page++
+            }
+            prefs?.edit()?.putBoolean(crawledKey, true)?.apply()
+            return
+        }
+
+        // 全量：3 页一批并发抓取，按序入库保证进度顺序
+        var page = 2
+        while (page <= lastPage) {
+            val batch = (page..minOf(page + SYNC_CONCURRENCY - 1, lastPage)).toList()
+            val fetched = coroutineScope {
+                batch.map { p -> async { p to withRetry { src.getCatalogPage(p, "") } } }.awaitAll()
+            }.sortedBy { it.first }
+            for ((p, cp) in fetched) {
+                if (cp.totalPages > totalPages) totalPages = cp.totalPages
+                rememberSitePages(sourceId, cp.totalPages)
+                totalNew += upsertPage(p, cp.items)
+                onProgress(SyncProgress(p, totalPages, totalNew))
+            }
+            page += batch.size
         }
         prefs?.edit()?.putBoolean(crawledKey, true)?.apply()
     }
@@ -271,6 +306,8 @@ class BookRepository(
         const val PAGE_SIZE = 30
         /** 目录全量同步的页数上限（fid=20 当前 68 页，留足余量） */
         const val MAX_SYNC_PAGES = 300
+        /** 全量同步的并发抓取页数 */
+        const val SYNC_CONCURRENCY = 3
         /** 「最近浏览」保留条数上限 */
         const val RECENT_KEEP = 100
     }

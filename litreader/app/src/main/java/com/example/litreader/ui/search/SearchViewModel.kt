@@ -29,7 +29,21 @@ class SearchViewModel(
     fun search(q: String) {
         query = q
         persist()
+        if (q.isNotBlank()) rememberHistory(q)
         reload()
+    }
+
+    /** 搜索历史（最多 5 条，去重置顶），\u0001 分隔存 prefs。 */
+    fun history(): List<String> =
+        prefs.getString("history", "")?.split('\u0001')?.filter { it.isNotBlank() } ?: emptyList()
+
+    fun removeHistory(q: String) {
+        prefs.edit().putString("history", (history() - q).joinToString("\u0001")).apply()
+    }
+
+    private fun rememberHistory(q: String) {
+        val next = (listOf(q) + history().filter { it != q }).take(5)
+        prefs.edit().putString("history", next.joinToString("\u0001")).apply()
     }
 
     fun applyFilter(f: String?) {

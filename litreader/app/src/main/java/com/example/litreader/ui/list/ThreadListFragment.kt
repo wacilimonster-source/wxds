@@ -1,6 +1,8 @@
 package com.example.litreader.ui.list
 
 import android.content.Context
+import android.content.Intent
+import android.graphics.Typeface
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
@@ -12,6 +14,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.PopupMenu
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -32,6 +35,7 @@ import com.example.litreader.util.Constants
 import com.example.litreader.util.ReadProgress
 import com.example.litreader.util.Skeleton
 import com.example.litreader.util.UpdateManager
+import java.io.File
 
 /** 文学/贴图共用的列表页，按 sourceId 区分数据源。 */
 class ThreadListFragment : Fragment() {
@@ -94,14 +98,22 @@ class ThreadListFragment : Fragment() {
         bind.swipe.setColorSchemeColors(ContextCompat.getColor(requireContext(), R.color.accent))
         bind.swipe.setOnRefreshListener { onManualRefresh() }
         bind.btnRefresh.setOnClickListener { onManualRefresh() }
-        bind.btnPrev.setOnClickListener { vm.prevPage() }
-        bind.btnNext.setOnClickListener { vm.nextPage() }
         bind.tvPage.setOnClickListener { showJumpDialog() }
         bind.tvPage.contentDescription = getString(R.string.jump_page)
         bind.btnSearch.setOnClickListener {
             (requireActivity() as? com.example.litreader.ui.main.MainActivity)?.openSearch(focus = true)
         }
         bind.btnMore.setOnClickListener { showMoreMenu(bind.btnMore) }
+
+        // 无限滚动：距底部 6 项时自动追加下一页
+        bind.recycler.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
+            override fun onScrolled(rv: androidx.recyclerview.widget.RecyclerView, dx: Int, dy: Int) {
+                super.onScrolled(rv, dx, dy)
+                if (dy <= 0) return
+                val lm = rv.layoutManager as? LinearLayoutManager ?: return
+                if (lm.findLastVisibleItemPosition() >= adapter.itemCount - 6) vm.loadMore()
+            }
+        })
 
         vm.threads.observe(viewLifecycleOwner) { list ->
             adapter.submit(list, readProgressMap())
@@ -127,8 +139,6 @@ class ThreadListFragment : Fragment() {
                 Skeleton.show(bind.skeleton)
                 bind.emptyBox.visibility = View.GONE
             }
-            bind.btnPrev.isEnabled = !loading && vm.page > 1
-            bind.btnNext.isEnabled = !loading && vm.page < vm.totalPages
             renderPageLabel()
         }
         vm.error.observe(viewLifecycleOwner) { msg ->
@@ -150,22 +160,22 @@ class ThreadListFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        // 从阅读器/详情返回时刷新已读标记（本地读取，开销极小）；首次进入不重复加载
+        // 从阅读器/详情返回时刷新已读标记（图片页全走缓存，瞬间）；首次进入不重复加载
         if (firstResume) {
             firstResume = false
             return
         }
-        if (this::vm.isInitialized) vm.load(vm.page)
+        if (this::vm.isInitialized) vm.reloadLoadedPages()
     }
 
     /** tid → 已读比例（0<ratio≤1），供列表卡片显示「读到 N%」。 */
     private fun readProgressMap(): Map<String, Float> = ReadProgress.map(requireActivity())
 
-    /** 手动刷新：文学区走目录增量同步（完成回调里会重载列表），贴图区沿用在线补页。 */
+    /** 手动刷新：文学区走目录增量同步（完成后重载已加载页），贴图区回到第 1 页强制重抓。 */
     private fun onManualRefresh() {
         val sync = syncVm
         if (sync != null) {
-            vm.load(vm.page)
+            vm.load(1)
             sync.sync()
         } else {
             vm.refresh()
@@ -189,10 +199,10 @@ class ThreadListFragment : Fragment() {
                         Toast.LENGTH_SHORT
                     ).show()
                 }
-                vm.load(vm.page)
+                vm.reloadLoadedPages()
             } else if (lastObservedRunning == null && st.error == null) {
                 // 进入页面时同步已完成（粘性状态）→ 直接读一次库
-                vm.load(vm.page)
+                vm.reloadLoadedPages()
             }
         }
         lastObservedRunning = st.running
@@ -284,16 +294,65 @@ class ThreadListFragment : Fragment() {
         popup.menu.add(0, MENU_VERSION, 0, getString(R.string.current_version, Constants.VERSION_NAME))
             .isEnabled = false
         popup.menu.add(0, MENU_CHECK_UPDATE, 1, getString(R.string.check_update))
+        popup.menu.add(0, MENU_CRASH_LOGS, 2, getString(R.string.crash_logs))
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 MENU_CHECK_UPDATE -> {
                     UpdateManager.checkAndPromptUpdate(requireActivity(), lifecycleScope, silent = false)
                     true
                 }
+                MENU_CRASH_LOGS -> {
+                    showCrashLogs()
+                    true
+                }
                 else -> false
             }
         }
         popup.show()
+    }
+
+    /** 本地崩溃日志列表（App 未捕获异常落盘，最多 5 份）。 */
+    private fun showCrashLogs() {
+        val files = requireContext().getExternalFilesDir("crash")
+            ?.listFiles()?.sortedByDescending { it.name }.orEmpty()
+        if (files.isEmpty()) {
+            Toast.makeText(requireContext(), R.string.crash_logs_empty, Toast.LENGTH_SHORT).show()
+            return
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.crash_logs)
+            .setItems(files.map { it.name }.toTypedArray()) { _, which -> showCrashContent(files[which]) }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun showCrashContent(file: File) {
+        val content = runCatching { file.readText() }.getOrDefault("读取失败")
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val scroll = ScrollView(requireContext())
+        val tv = TextView(requireContext()).apply {
+            text = content
+            textSize = 10f
+            typeface = Typeface.MONOSPACE
+            setPadding(pad, pad, pad, pad)
+        }
+        scroll.addView(tv)
+        AlertDialog.Builder(requireContext())
+            .setTitle(file.name)
+            .setView(scroll)
+            .setPositiveButton(R.string.share_image) { _, _ ->
+                startActivity(
+                    Intent.createChooser(
+                        Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, content)
+                        },
+                        getString(R.string.share_image)
+                    )
+                )
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 
     private fun renderPageLabel() {
@@ -306,6 +365,7 @@ class ThreadListFragment : Fragment() {
         private const val ARG_SOURCE = "sourceId"
         private const val MENU_VERSION = 1
         private const val MENU_CHECK_UPDATE = 2
+        private const val MENU_CRASH_LOGS = 3
         fun newInstance(sourceId: String) = ThreadListFragment().apply {
             arguments = Bundle().apply { putString(ARG_SOURCE, sourceId) }
         }

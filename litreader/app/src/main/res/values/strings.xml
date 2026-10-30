@@ -58,6 +58,8 @@
     <string name="sync_progress">同步目录 %1$d/%2$d 页 · 新增 %3$d 条</string>
     <string name="sync_failed">目录同步失败：%1$s</string>
     <string name="gallery_archived">站点已归档更早的帖子，已回到第 %1$d 页</string>
+    <string name="crash_logs">崩溃日志</string>
+    <string name="crash_logs_empty">暂无崩溃记录</string>
 
     <string name="filter_unread">未读</string>
     <string name="filter_read">已读</string>

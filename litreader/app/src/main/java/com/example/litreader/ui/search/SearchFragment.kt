@@ -6,8 +6,11 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
+import android.widget.LinearLayout
 import android.widget.PopupMenu
+import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -59,13 +62,18 @@ class SearchFragment : Fragment() {
             }
         )
 
-        bind.btnClear.setOnClickListener { bind.etSearch.setText("") }
+        bind.btnClear.setOnClickListener {
+            bind.etSearch.setText("")
+            renderHistory()
+            bind.etSearch.requestFocus()
+        }
 
         bind.etSearch.setOnEditorActionListener { _, _, _ ->
             val q = bind.etSearch.text.toString().trim()
             if (q.isNotEmpty()) {
                 bind.filterBar.visibility = View.VISIBLE
                 vm.search(q)
+                bind.historyBar.visibility = View.GONE
             } else {
                 Toast.makeText(requireContext(), "请输入搜索关键词", Toast.LENGTH_SHORT).show()
             }
@@ -96,7 +104,7 @@ class SearchFragment : Fragment() {
             }
         }
 
-        // 上次搜索在进入页签时恢复（本地库重查，毫秒级）；没有则显示引导空态。
+        // 上次搜索在进入页签时恢复（本地库重查，毫秒级）；没有则显示历史/引导空态。
         // 全选恢复词：用户直接输入即覆盖旧词，不会拼成"旧词+新词"
         val last = vm.lastQuery()
         if (last.isNotEmpty()) {
@@ -106,6 +114,44 @@ class SearchFragment : Fragment() {
             vm.search(last)
         } else {
             render(emptyList())
+            renderHistory()
+        }
+    }
+
+    /** 历史 chips：输入框为空且有记录时露出，点击即搜、长按删除。 */
+    private fun renderHistory() {
+        val items = vm.history()
+        bind.historyBar.visibility =
+            if (bind.etSearch.text.isNullOrBlank() && items.isNotEmpty()) View.VISIBLE else View.GONE
+        val row = bind.historyRow
+        row.removeAllViews()
+        val padH = (10 * resources.displayMetrics.density).toInt()
+        val padV = (5 * resources.displayMetrics.density).toInt()
+        items.forEach { kw ->
+            val tv = TextView(requireContext()).apply {
+                text = kw
+                textSize = 12f
+                setTextColor(ContextCompat.getColor(requireContext(), R.color.inkSecondary))
+                setBackgroundResource(R.drawable.bg_tag)
+                setPadding(padH, padV, padH, padV)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { marginEnd = (8 * resources.displayMetrics.density).toInt() }
+                setOnClickListener {
+                    bind.etSearch.setText(kw)
+                    bind.etSearch.setSelection(kw.length)
+                    bind.filterBar.visibility = View.VISIBLE
+                    bind.historyBar.visibility = View.GONE
+                    vm.search(kw)
+                    hideKeyboard()
+                }
+                setOnLongClickListener {
+                    vm.removeHistory(kw)
+                    renderHistory()
+                    true
+                }
+            }
+            row.addView(tv)
         }
     }
 
