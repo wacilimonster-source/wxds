@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [ThreadEntity::class, ThreadContentEntity::class], version = 7)
+@Database(entities = [ThreadEntity::class, ThreadContentEntity::class], version = 8)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun threadDao(): ThreadDao
     abstract fun threadContentDao(): ThreadContentDao
@@ -20,6 +20,7 @@ abstract class AppDatabase : RoomDatabase() {
          * v4→v5：增加 readState 列（0=未读 1=已读 2=已读完）。
          * v5→v6：增加 favoriteAt 列（收藏先后排序）。
          * v6→v7：增加 lastOpenAt 列（书架「最近浏览」排序，0=未浏览过）。
+         * v7→v8：threads 表补索引（列表分页/收藏/最近浏览/贴图按页缓存此前全表扫描）。
          */
         private val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -52,8 +53,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_threads_sourceId_category_timestamp` ON threads (`sourceId`, `category`, `timestamp`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_threads_favorite` ON threads (`favorite`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_threads_lastOpenAt` ON threads (`lastOpenAt`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_threads_sitePage` ON threads (`sitePage`)")
+            }
+        }
+
         fun build(ctx: Context) = Room.databaseBuilder(ctx, AppDatabase::class.java, "lit.db")
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+            .addMigrations(
+                MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8
+            )
             .fallbackToDestructiveMigration()
             .build()
     }

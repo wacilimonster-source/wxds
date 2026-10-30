@@ -30,6 +30,7 @@ import com.example.litreader.databinding.FragmentListBinding
 import com.example.litreader.ui.detail.ThreadDetailActivity
 import com.example.litreader.util.Constants
 import com.example.litreader.util.ReadProgress
+import com.example.litreader.util.Skeleton
 import com.example.litreader.util.UpdateManager
 
 /** 文学/贴图共用的列表页，按 sourceId 区分数据源。 */
@@ -104,7 +105,7 @@ class ThreadListFragment : Fragment() {
 
         vm.threads.observe(viewLifecycleOwner) { list ->
             adapter.submit(list, readProgressMap())
-            bind.emptyBox.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
+            bind.emptyBox.visibility = if (list.isEmpty() && vm.loading.value != true) View.VISIBLE else View.GONE
             bind.swipe.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
             if (list.isEmpty()) {
                 bind.tvEmptyTitle.setText(
@@ -118,8 +119,14 @@ class ThreadListFragment : Fragment() {
         }
         vm.tags.observe(viewLifecycleOwner) { renderTags(it) }
         vm.loading.observe(viewLifecycleOwner) { loading ->
-            if (!loading) bind.swipe.isRefreshing = false
-            bind.progress.visibility = if (loading && !bind.swipe.isRefreshing) View.VISIBLE else View.GONE
+            if (!loading) {
+                bind.swipe.isRefreshing = false
+                Skeleton.hide(bind.skeleton)
+                bind.emptyBox.visibility = if (adapter.itemCount == 0) View.VISIBLE else View.GONE
+            } else if (adapter.itemCount == 0) {
+                Skeleton.show(bind.skeleton)
+                bind.emptyBox.visibility = View.GONE
+            }
             bind.btnPrev.isEnabled = !loading && vm.page > 1
             bind.btnNext.isEnabled = !loading && vm.page < vm.totalPages
             renderPageLabel()

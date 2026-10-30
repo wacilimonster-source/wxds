@@ -17,6 +17,7 @@ import com.example.litreader.databinding.FragmentFavoritesBinding
 import com.example.litreader.ui.list.ThreadAdapter
 import com.example.litreader.ui.main.MainActivity
 import com.example.litreader.util.ReadProgress
+import com.example.litreader.util.Skeleton
 
 /** 书架：最近浏览 + 收藏 两段共用一个列表，段内筛选/排序独立。 */
 class FavoritesFragment : Fragment() {
@@ -80,10 +81,18 @@ class FavoritesFragment : Fragment() {
                 if (vm.sectionFavorites) sort(list) else list,
                 ReadProgress.map(requireActivity())
             )
-            bind.emptyBox.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
+            bind.emptyBox.visibility = if (list.isEmpty() && vm.loading.value != true) View.VISIBLE else View.GONE
         }
-        vm.loading.observe(viewLifecycleOwner) {
-            bind.progress.visibility = if (it) View.VISIBLE else View.GONE
+        vm.loading.observe(viewLifecycleOwner) { loading ->
+            if (loading && adapter.itemCount == 0) {
+                Skeleton.show(bind.skeleton)
+                bind.emptyBox.visibility = View.GONE
+            } else {
+                Skeleton.hide(bind.skeleton)
+                if (!loading) {
+                    bind.emptyBox.visibility = if (adapter.itemCount == 0) View.VISIBLE else View.GONE
+                }
+            }
         }
     }
 

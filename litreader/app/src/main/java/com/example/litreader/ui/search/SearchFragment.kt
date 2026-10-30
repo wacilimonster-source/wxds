@@ -17,6 +17,7 @@ import com.example.litreader.data.db.ThreadEntity
 import com.example.litreader.databinding.FragmentSearchBinding
 import com.example.litreader.ui.list.ThreadAdapter
 import com.example.litreader.ui.main.MainActivity
+import com.example.litreader.util.Skeleton
 
 /** 搜索页签：常驻内存 + prefs 落盘，切走页签或重启后上次查询与结果保留。 */
 class SearchFragment : Fragment() {
@@ -85,12 +86,22 @@ class SearchFragment : Fragment() {
         bind.tvSearchSort.setOnClickListener { showSortMenu() }
 
         vm.threads.observe(viewLifecycleOwner, ::render)
-        vm.loading.observe(viewLifecycleOwner) { bind.progress.visibility = if (it) View.VISIBLE else View.GONE }
+        vm.loading.observe(viewLifecycleOwner) { loading ->
+            if (loading && adapter.itemCount == 0) {
+                Skeleton.show(bind.skeleton)
+                bind.emptyBox.visibility = View.GONE
+            } else {
+                Skeleton.hide(bind.skeleton)
+                if (!loading) render(vm.threads.value ?: emptyList())
+            }
+        }
 
-        // 上次搜索在进入页签时恢复（本地库重查，毫秒级）；没有则显示引导空态
+        // 上次搜索在进入页签时恢复（本地库重查，毫秒级）；没有则显示引导空态。
+        // 全选恢复词：用户直接输入即覆盖旧词，不会拼成"旧词+新词"
         val last = vm.lastQuery()
         if (last.isNotEmpty()) {
             bind.etSearch.setText(last)
+            bind.etSearch.setSelection(0, last.length)
             bind.filterBar.visibility = View.VISIBLE
             vm.search(last)
         } else {
@@ -101,7 +112,7 @@ class SearchFragment : Fragment() {
     private fun render(list: List<ThreadEntity>) {
         adapter.submit(list)
         val empty = list.isEmpty()
-        bind.emptyBox.visibility = if (empty) View.VISIBLE else View.GONE
+        bind.emptyBox.visibility = if (empty && vm.loading.value != true) View.VISIBLE else View.GONE
         if (!empty) return
         if (vm.query.isEmpty()) {
             bind.tvEmptyTitle.text = "输入关键词搜索"

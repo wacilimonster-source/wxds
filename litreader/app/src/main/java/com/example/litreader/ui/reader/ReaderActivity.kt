@@ -37,9 +37,11 @@ import com.example.litreader.data.repo.BookRepository
 import com.example.litreader.databinding.ActivityReaderBinding
 import com.example.litreader.ui.detail.ThreadDetailActivity
 import com.example.litreader.ui.gallery.GalleryActivity
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
 
@@ -187,17 +189,30 @@ class ReaderActivity : AppCompatActivity() {
 
     private fun buildContent(posts: List<com.example.litreader.data.model.Post>) {
         val builder = HtmlToSpans(theme.subtle, floorMarks, dp(22))
-        spannable = builder.build(posts)
-        floorOffsets = builder.floorOffsets
-        images = builder.imageUrls.toList()
-        imageSlots = builder.imageSlots
-        loaded = true
-        openRestoreOffset = savedOffset()
-        bind.content.post {
-            rebuild(restoreOffset = savedOffset(), restoreProgress = !restoredOnce)
-            requestInlineImages()
+        lifecycleScope.launch {
+            // 整帖 HTML→Spannable 解析较重（长帖数百 KB），放后台算，避免进阅读器掉帧
+            val built = withContext(Dispatchers.Default) {
+                BuiltContent(builder.build(posts), builder.floorOffsets, builder.imageUrls.toList(), builder.imageSlots)
+            }
+            spannable = built.spannable
+            floorOffsets = built.floorOffsets
+            images = built.images
+            imageSlots = built.slots
+            loaded = true
+            openRestoreOffset = savedOffset()
+            bind.content.post {
+                rebuild(restoreOffset = savedOffset(), restoreProgress = !restoredOnce)
+                requestInlineImages()
+            }
         }
     }
+
+    private data class BuiltContent(
+        val spannable: SpannableStringBuilder,
+        val floorOffsets: Map<Int, Int>,
+        val images: List<String>,
+        val slots: List<ImageSlot>
+    )
 
     // ---------- 内联图片 ----------
 

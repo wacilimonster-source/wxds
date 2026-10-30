@@ -1,9 +1,18 @@
 package com.example.litreader.data.db
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "threads")
+@Entity(
+    tableName = "threads",
+    indices = [
+        Index(value = ["sourceId", "category", "timestamp"]),
+        Index(value = ["favorite"]),
+        Index(value = ["lastOpenAt"]),
+        Index(value = ["sitePage"])
+    ]
+)
 data class ThreadEntity(
     @PrimaryKey val tid: String,
     val sourceId: String,

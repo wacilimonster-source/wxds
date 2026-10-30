@@ -10,6 +10,13 @@ import com.example.litreader.R
 import com.example.litreader.data.db.ThreadEntity
 import com.example.litreader.data.source.SourceRegistry
 import com.example.litreader.databinding.ItemThreadBinding
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ThreadAdapter(
     private val onClick: (ThreadEntity) -> Unit,
@@ -18,33 +25,54 @@ class ThreadAdapter(
     private val showSection: Boolean = false
 ) : RecyclerView.Adapter<ThreadAdapter.VH>() {
 
-    private var data = listOf<ThreadEntity>()
-    private var progress: Map<String, Float> = emptyMap()
+    // 大结果集（书架收藏/搜索可达数百条）的 Diff 计算放后台，避免主线程卡顿。
+    // 一致性约束：RecyclerView 可见的永远是 displayed 快照；submit 后必须等 diff
+    // 在主线程 dispatchUpdatesTo 完成才换快照——否则计算窗口期里任何 re-layout
+    // 都会让 getItemCount 与 RecyclerView 内部状态不一致而崩溃。
+    private var displayed = listOf<ThreadEntity>()
+    private var displayedProgress: Map<String, Float> = emptyMap()
+    private val diffScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var diffJob: Job? = null
 
     /** 书架「最近」段：第 1 行用 accent 描边标记为「继续阅读」卡。 */
     var highlightFirst: Boolean = false
 
-    fun submit(list: List<ThreadEntity>) = submit(list, progress)
+    fun submit(list: List<ThreadEntity>) = submit(list, displayedProgress)
 
     fun submit(list: List<ThreadEntity>, progressMap: Map<String, Float>) {
-        val old = data
-        val oldProgress = progress
-        data = list
-        progress = progressMap
-        DiffUtil.calculateDiff(object : DiffUtil.Callback() {
-            override fun getOldListSize() = old.size
-            override fun getNewListSize() = list.size
-            override fun areItemsTheSame(o: Int, n: Int) = old[o].tid == list[n].tid
-            override fun areContentsTheSame(o: Int, n: Int) =
-                old[o] == list[n] && oldProgress[old[o].tid] == progress[list[n].tid]
-        }).dispatchUpdatesTo(this)
+        val old = displayed
+        val oldProgress = displayedProgress
+        diffJob?.cancel()
+        diffJob = diffScope.launch {
+            val diff = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+                override fun getOldListSize() = old.size
+                override fun getNewListSize() = list.size
+                override fun areItemsTheSame(o: Int, n: Int) = old[o].tid == list[n].tid
+                override fun areContentsTheSame(o: Int, n: Int) =
+                    old[o] == list[n] && oldProgress[old[o].tid] == progressMap[list[n].tid]
+            })
+            withContext(Dispatchers.Main) {
+                displayed = list
+                displayedProgress = progressMap
+                diff.dispatchUpdatesTo(this@ThreadAdapter)
+            }
+        }
+    }
+
+    override fun onDetachedFromRecyclerView(rv: RecyclerView) {
+        diffScope.cancel()
+        super.onDetachedFromRecyclerView(rv)
     }
 
     inner class VH(val b: ItemThreadBinding) : RecyclerView.ViewHolder(b.root) {
         init {
-            b.root.setOnClickListener { if (adapterPosition != RecyclerView.NO_POSITION) onClick(data[adapterPosition]) }
+            b.root.setOnClickListener {
+                if (adapterPosition != RecyclerView.NO_POSITION) onClick(displayed[adapterPosition])
+            }
             b.root.setOnLongClickListener {
-                if (adapterPosition != RecyclerView.NO_POSITION) { onLongClick(data[adapterPosition]); true } else false
+                if (adapterPosition != RecyclerView.NO_POSITION) {
+                    onLongClick(displayed[adapterPosition]); true
+                } else false
             }
         }
     }
@@ -52,10 +80,10 @@ class ThreadAdapter(
     override fun onCreateViewHolder(p: ViewGroup, v: Int): VH =
         VH(ItemThreadBinding.inflate(LayoutInflater.from(p.context), p, false))
 
-    override fun getItemCount() = data.size
+    override fun getItemCount() = displayed.size
 
     override fun onBindViewHolder(h: VH, i: Int) {
-        val t = data[i]
+        val t = displayed[i]
         h.b.tvTitle.text = t.title
 
         if (showSection) {
@@ -89,7 +117,7 @@ class ThreadAdapter(
             }
             1 -> {
                 h.b.tvReadMark.visibility = View.VISIBLE
-                val p = progress[t.tid]
+                val p = displayedProgress[t.tid]
                 if (p != null && p > 0.005f) {
                     h.b.tvReadMark.text = ctx.getString(R.string.item_progress, (p * 100).toInt())
                 } else {
