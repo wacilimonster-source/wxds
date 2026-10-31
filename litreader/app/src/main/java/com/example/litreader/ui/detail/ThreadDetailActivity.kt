@@ -4,9 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import android.webkit.JavascriptInterface
 import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -15,9 +13,7 @@ import com.example.litreader.R
 import com.example.litreader.data.model.Post
 import com.example.litreader.data.repo.BookRepository
 import com.example.litreader.data.source.SourceRegistry
-import com.example.litreader.data.source.SourceStyle
 import com.example.litreader.databinding.ActivityDetailBinding
-import com.example.litreader.ui.gallery.GalleryActivity
 import com.example.litreader.ui.reader.ReaderActivity
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -69,8 +65,7 @@ class ThreadDetailActivity : AppCompatActivity() {
                     ?: SourceRegistry.first().id
             }
             val source = SourceRegistry.get(sourceId) ?: SourceRegistry.first()
-            if (source.style == SourceStyle.IMAGE) setupImageMode()
-            else bind.btnReader.visibility = View.VISIBLE
+            bind.btnReader.visibility = View.VISIBLE
             bind.btnReader.setOnClickListener {
                 startActivity(Intent(this@ThreadDetailActivity, ReaderActivity::class.java).apply {
                     putExtra("tid", tid)
@@ -102,53 +97,15 @@ class ThreadDetailActivity : AppCompatActivity() {
         }
     }
 
-    /** 图片帖：字号控件无意义，隐藏；开启 JS 注入点击看大图。 */
-    private fun setupImageMode() {
-        bind.btnFontDown.visibility = View.GONE
-        bind.btnFontUp.visibility = View.GONE
-        bind.tvFont.visibility = View.GONE
-    }
-
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWeb() {
-        val source = SourceRegistry.get(sourceId)
-        val isImage = source?.style == SourceStyle.IMAGE
-        bind.web.settings.javaScriptEnabled = isImage
+        // 仅服务文学帖的「论坛楼层视图」；图片帖已直进原生阅读器
         bind.web.settings.loadWithOverviewMode = true
-        bind.web.settings.mediaPlaybackRequiresUserGesture = true
-        if (isImage) {
-            bind.web.addJavascriptInterface(Bridge(), "AppBridge")
-            bind.web.webViewClient = object : WebViewClient() {
-                override fun onPageFinished(view: WebView, url: String) {
-                    view.evaluateJavascript(BIND_IMAGE_CLICKS_JS, null)
-                }
-            }
-        }
         WebView.setWebContentsDebuggingEnabled(false)
         // 跟随应用日/夜主题，正文底色与界面一致
         val dark = (resources.configuration.uiMode and
             android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
         if (dark) bind.web.setBackgroundColor(ContextCompat.getColor(this, R.color.bgPaper))
-    }
-
-    private inner class Bridge {
-        @JavascriptInterface
-        fun tapImage(src: String) {
-            val urls = imageUrls
-            var idx = urls.indexOf(src)
-            val list = if (idx >= 0) urls else {
-                idx = urls.size
-                urls + src
-            }
-            if (list.isEmpty()) return
-            runOnUiThread {
-                startActivity(Intent(this@ThreadDetailActivity, GalleryActivity::class.java).apply {
-                    putStringArrayListExtra("urls", ArrayList(list))
-                    putExtra("index", idx)
-                    putExtra("title", bind.tvChapter.text.toString())
-                })
-            }
-        }
     }
 
     private fun totalPages(): Int = max(1, ceil(posts.size / FLOORS_PER_PAGE.toDouble()).toInt())
@@ -162,8 +119,8 @@ class ThreadDetailActivity : AppCompatActivity() {
                 fromCache = cached
                 floorPage = 1
                 renderPosts()
-                // 文学帖打开即记为已读（不影响已读完标记）
-                if (SourceRegistry.get(sourceId)?.style == SourceStyle.TEXT) repo.markRead(tid)
+                // 打开即记为已读（不影响已读完标记）
+                repo.markRead(tid)
             } catch (e: Exception) {
                 bind.web.loadDataWithBaseURL(
                     BASE_URL, readerHtml("<p>加载失败：${e.message ?: "网络错误"}</p><p>已缓存的章节在联网后仍可离线重读。</p>"),
@@ -271,10 +228,3 @@ class ThreadDetailActivity : AppCompatActivity() {
         if (posts.isNotEmpty()) renderPosts()
     }
 }
-
-/** 给正文里的图片挂点击事件，把地址回传给 AppBridge。 */
-private const val BIND_IMAGE_CLICKS_JS =
-    "(function(){for(var i=0;i<document.images.length;i++){(function(im){" +
-        "im.style.cursor='pointer';" +
-        "im.addEventListener('click',function(){AppBridge.tapImage(im.currentSrc||im.src)})" +
-        "})(document.images[i])}})()"

@@ -34,6 +34,8 @@ import com.example.litreader.App
 import com.example.litreader.R
 import com.example.litreader.data.model.Post
 import com.example.litreader.data.repo.BookRepository
+import com.example.litreader.data.source.SourceRegistry
+import com.example.litreader.data.source.SourceStyle
 import com.example.litreader.databinding.ActivityReaderBinding
 import com.example.litreader.ui.detail.ThreadDetailActivity
 import com.example.litreader.ui.gallery.GalleryActivity
@@ -557,6 +559,10 @@ class ReaderActivity : AppCompatActivity() {
         bind.menuTabStyle.setOnClickListener { menuTab = 0; renderMenuTab() }
         bind.menuTabMore.setOnClickListener { menuTab = 1; renderMenuTab() }
         bind.btnForum.text = "论坛"  // 短文案避免窄屏换行
+        // 图片帖已在原生视图（内联图+点图进画廊），无需跳 WebView 楼层视图
+        if (SourceRegistry.get(sourceId)?.style == SourceStyle.IMAGE) {
+            bind.btnForum.visibility = View.GONE
+        }
         renderMenuTab()
         bind.btnFloorJump.setOnClickListener { showFloorJump() }
         bind.btnForum.setOnClickListener { goForum() }
