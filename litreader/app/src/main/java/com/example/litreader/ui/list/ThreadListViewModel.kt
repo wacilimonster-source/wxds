@@ -8,6 +8,7 @@ import com.example.litreader.data.db.ThreadEntity
 import com.example.litreader.data.repo.BookRepository
 import com.example.litreader.data.source.SourceRegistry
 import com.example.litreader.data.source.SourceStyle
+import com.example.litreader.util.KeywordBlock
 import kotlinx.coroutines.launch
 import kotlin.math.ceil
 import kotlin.math.max
@@ -15,6 +16,7 @@ import kotlin.math.min
 
 class ThreadListViewModel(
     private val repo: BookRepository,
+    private val prefs: SharedPreferences,
     private val sourceId: String
 ) : ViewModel() {
     private val source = SourceRegistry.get(sourceId) ?: SourceRegistry.first()
@@ -91,7 +93,7 @@ class ThreadListViewModel(
                 accumulated.clear()
                 accumulated += list
                 noMore = false
-                _threads.value = accumulated.toList()
+                _threads.value = filtered()
                 if (isImage) {
                     siteTotalPages = repo.sitePageCount(sourceId)
                     validPages = repo.validPageCount(sourceId)
@@ -129,7 +131,7 @@ class ThreadListViewModel(
                 } else {
                     accumulated += rows
                     page = next
-                    _threads.value = accumulated.toList()
+                    _threads.value = filtered()
                 }
             } catch (e: Exception) {
                 _error.value = "加载失败：${e.message ?: "网络错误"}"
@@ -154,7 +156,7 @@ class ThreadListViewModel(
                 accumulated.clear()
                 accumulated += all
                 noMore = false
-                _threads.value = accumulated.toList()
+                _threads.value = filtered()
                 if (!isImage) _tags.value = repo.tagCounts(sourceId)
             } catch (_: Exception) {
                 // 刷新失败保留现有列表
@@ -162,6 +164,22 @@ class ThreadListViewModel(
                 _loading.value = false
             }
         }
+    }
+
+    /** 屏蔽词命中数（更多菜单标题「关键词屏蔽（N）」用）。 */
+    fun blockedCount(): Int = _threads.value?.size?.let { accumulated.size - it } ?: 0
+
+    /** 关键词屏蔽：accumulated 存原始数据，发布时过滤（增删词后 refilter 即时生效）。 */
+    private fun filtered(): List<ThreadEntity> {
+        val kws = KeywordBlock.list(prefs, sourceId)
+        if (kws.isEmpty()) return accumulated.toList()
+        return accumulated.filter { !KeywordBlock.hit(it.title, kws) }
+    }
+
+    /** 屏蔽词变化后重发布（不重查库、不动滚动位置，DiffUtil 平滑增删）。 */
+    fun refilter() {
+        if (accumulated.isEmpty()) return
+        _threads.value = filtered()
     }
 
     fun selectTag(t: String) {
@@ -194,5 +212,5 @@ class ThreadListVmFactory(
     private val sourceId: String
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(m: Class<T>): T =
-        ThreadListViewModel(BookRepository(db, prefs), sourceId) as T
+        ThreadListViewModel(BookRepository(db, prefs), prefs, sourceId) as T
 }

@@ -65,6 +65,16 @@
     <string name="filter_read">已读</string>
     <string name="filter_finished">已读完</string>
 
+    <string name="keyword_block">关键词屏蔽</string>
+    <string name="keyword_block_n">关键词屏蔽（%1$d）</string>
+    <string name="keyword_block_hint">标题命中任一关键词的帖子将不在列表显示</string>
+    <string name="keyword_none">还没有屏蔽词</string>
+    <string name="keyword_chip">%1$s ✕</string>
+    <string name="keyword_input_hint">输入关键词，如：系统文</string>
+    <string name="keyword_add">添加</string>
+    <string name="keyword_empty">请输入关键词</string>
+    <string name="keyword_exists">该关键词已存在</string>
+
     <string name="reader_finish_mark">读完</string>
     <string name="reader_finished">已读完</string>
     <string name="reader_auto">自动读完 %1$s</string>

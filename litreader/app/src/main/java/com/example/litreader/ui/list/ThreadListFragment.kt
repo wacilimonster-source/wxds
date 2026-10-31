@@ -322,10 +322,20 @@ class ThreadListFragment : Fragment() {
         val popup = PopupMenu(requireContext(), anchor, Gravity.END)
         popup.menu.add(0, MENU_VERSION, 0, getString(R.string.current_version, com.example.litreader.util.Constants.VERSION_NAME))
             .isEnabled = false
-        popup.menu.add(0, MENU_CHECK_UPDATE, 1, getString(R.string.check_update))
-        popup.menu.add(0, MENU_CRASH_LOGS, 2, getString(R.string.crash_logs))
+        val blocked = vm.blockedCount()
+        popup.menu.add(0, MENU_KEYWORDS, 1,
+            if (blocked > 0) getString(R.string.keyword_block_n, blocked) else getString(R.string.keyword_block)
+        )
+        popup.menu.add(0, MENU_CHECK_UPDATE, 2, getString(R.string.check_update))
+        popup.menu.add(0, MENU_CRASH_LOGS, 3, getString(R.string.crash_logs))
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
+                MENU_KEYWORDS -> {
+                    KeywordSheet.newInstance(sourceId) {
+                        vm.refilter()
+                    }.show(parentFragmentManager, "keywords")
+                    true
+                }
                 MENU_CHECK_UPDATE -> {
                     UpdateManager.checkAndPromptUpdate(requireActivity(), lifecycleScope, silent = false)
                     true
@@ -408,6 +418,7 @@ class ThreadListFragment : Fragment() {
         private const val MENU_VERSION = 1
         private const val MENU_CHECK_UPDATE = 2
         private const val MENU_CRASH_LOGS = 3
+        private const val MENU_KEYWORDS = 4
         fun newInstance(sourceId: String) = ThreadListFragment().apply {
             arguments = Bundle().apply { putString(ARG_SOURCE, sourceId) }
         }
