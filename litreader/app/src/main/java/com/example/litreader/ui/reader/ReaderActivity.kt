@@ -43,6 +43,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
+import com.example.litreader.util.Haptics
+import com.example.litreader.util.UiTips
 import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
@@ -150,6 +154,13 @@ class ReaderActivity : AppCompatActivity() {
         bind.tvTitle.text = intent.getStringExtra("title") ?: ""
 
         window.statusBarColor = Color.parseColor("#141414")
+        // 进出转场：列表卡片位置放大淡入（近似 container-transform），返回时缩回
+        if (android.os.Build.VERSION.SDK_INT >= 34) {
+            overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_OPEN, R.anim.lr_enter, R.anim.lr_stay)
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(R.anim.lr_enter, R.anim.lr_stay)
+        }
         setupMenu()
         setupContainers()
         applyThemeColors()
@@ -320,14 +331,21 @@ class ReaderActivity : AppCompatActivity() {
     private fun setupFlip(restoreOffset: Int) {
         bind.pager.visibility = View.VISIBLE
         bind.scrollWrap.visibility = View.GONE
-        // 覆盖式翻页：当前页在上层滑出，次页原地揭示（而非两页平移）
+        // 覆盖式翻页：当前页在上层滑出，次页原地揭示（而非两页平移）；
+        // 离场页以左缘为轴轻微缩小，模拟纸张掀起
         bind.pager.setPageTransformer { page, pos ->
             if (pos > 0f) {
                 page.translationX = -pos * page.width
                 page.translationZ = 0f
+                page.scaleX = 1f
+                page.scaleY = 1f
             } else {
                 page.translationX = 0f
                 page.translationZ = 1f
+                page.pivotX = 0f
+                val f = -pos
+                page.scaleX = 1f - 0.04f * f
+                page.scaleY = 1f - 0.04f * f
             }
         }
         layout?.let {
@@ -438,6 +456,7 @@ class ReaderActivity : AppCompatActivity() {
         bind.seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
                 if (!fromUser) return
+                updateSeekBubble(sb, progress)
                 if (flipMode) {
                     bind.pager.setCurrentItem(progress, false)
                 } else {
@@ -445,8 +464,14 @@ class ReaderActivity : AppCompatActivity() {
                     bind.scrollWrap.scrollTo(0, (progress / 1000f * h).toInt())
                 }
             }
-            override fun onStartTrackingTouch(sb: SeekBar) {}
-            override fun onStopTrackingTouch(sb: SeekBar) = saveProgress()
+            override fun onStartTrackingTouch(sb: SeekBar) {
+                bind.seekBubble.visibility = View.VISIBLE
+                updateSeekBubble(sb, sb.progress)
+            }
+            override fun onStopTrackingTouch(sb: SeekBar) {
+                bind.seekBubble.visibility = View.GONE
+                saveProgress()
+            }
         })
 
         val tapDetector = GestureDetector(
@@ -500,7 +525,13 @@ class ReaderActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 favorite = !favorite
                 repo.setFavorite(tid, favorite)
+                Haptics.key(bind.root)
                 renderFav()
+                UiTips.snack(
+                    bind.root,
+                    getString(if (favorite) R.string.fav_added else R.string.fav_removed),
+                    anchor = if (menuShown) bind.menuBottom else null
+                )
             }
         }
         bind.btnRetry.setOnClickListener {
@@ -512,16 +543,20 @@ class ReaderActivity : AppCompatActivity() {
         bind.btnFontDown.setOnClickListener { setFont(fontSp() - 1) }
         bind.btnFontUp.setOnClickListener { setFont(fontSp() + 1) }
         bind.btnLine.setOnClickListener {
+            Haptics.tick(bind.root)
             lineIdx = (lineIdx + 1) % lineSpacings.size
             bind.btnLine.text = getString(R.string.reader_line, trim(lineSpacing))
             rebuild()
         }
         bind.btnTheme.setOnClickListener {
-            themeIdx = (themeIdx + 1) % themes.size
-            bind.btnTheme.text = getString(R.string.reader_theme, theme.label)
-            rebuild()
+            setThemeIndex((themeIdx + 1) % themes.size)
         }
+        bind.dotPaper.setOnClickListener { setThemeIndex(0) }
+        bind.dotSuede.setOnClickListener { setThemeIndex(1) }
+        bind.dotGreen.setOnClickListener { setThemeIndex(2) }
+        bind.dotNight.setOnClickListener { setThemeIndex(3) }
         bind.btnPad.setOnClickListener {
+            Haptics.tick(bind.root)
             padIdx = (padIdx + 1) % padPresets.size
             renderPadLabel()
             rebuild()
@@ -552,6 +587,7 @@ class ReaderActivity : AppCompatActivity() {
         }
         bind.btnSearch.setOnClickListener { showSearchDialog() }
         bind.btnFontFamily.setOnClickListener {
+            Haptics.tick(bind.root)
             serif = !serif
             renderFontFamilyLabel()
             rebuild()
@@ -568,11 +604,13 @@ class ReaderActivity : AppCompatActivity() {
         bind.btnForum.setOnClickListener { goForum() }
         bind.btnFinished.setOnClickListener {
             finished = !finished
+            if (finished) Haptics.confirm(bind.root)
             lifecycleScope.launch { repo.setFinished(tid, finished) }
             renderFinishedLabel()
         }
 
         renderFav()
+        renderThemeDots()
         renderFlipLabel()
         renderMarksLabel()
         renderAutoFinishLabel()
@@ -588,6 +626,8 @@ class ReaderActivity : AppCompatActivity() {
 
     private fun setFont(v: Int) {
         val size = v.coerceIn(12, 30)
+        if (size == fontSp()) return
+        Haptics.tick(bind.root)
         fontPrefs.edit().putInt("reader_font", size).apply()
         bind.tvFont.text = "$size"
         rebuild()
@@ -755,10 +795,34 @@ class ReaderActivity : AppCompatActivity() {
 
     private fun toggleMenu() {
         menuShown = !menuShown
-        val v = if (menuShown) View.VISIBLE else View.GONE
-        bind.menuTop.visibility = v
-        bind.menuBottom.visibility = v
+        animateMenu()
         immersive(!menuShown)
+    }
+
+    /** 菜单呼出/隐藏：顶栏上滑、底板下滑，200ms 标准缓动。 */
+    private fun animateMenu() {
+        val top = bind.menuTop
+        val bottom = bind.menuBottom
+        val dur = 200L
+        if (menuShown) {
+            top.visibility = View.VISIBLE
+            bottom.visibility = View.VISIBLE
+            top.translationY = -top.height * 0.6f - 1f
+            bottom.translationY = bottom.height * 0.6f + 1f
+            top.alpha = 0f
+            bottom.alpha = 0f
+            top.animate().translationY(0f).alpha(1f).setDuration(dur)
+                .setInterpolator(DecelerateInterpolator()).start()
+            bottom.animate().translationY(0f).alpha(1f).setDuration(dur)
+                .setInterpolator(DecelerateInterpolator()).start()
+        } else {
+            top.animate().translationY(-top.height * 0.6f - 1f).alpha(0f).setDuration(dur)
+                .setInterpolator(AccelerateInterpolator())
+                .withEndAction { top.visibility = View.GONE }.start()
+            bottom.animate().translationY(bottom.height * 0.6f + 1f).alpha(0f).setDuration(dur)
+                .setInterpolator(AccelerateInterpolator())
+                .withEndAction { bottom.visibility = View.GONE }.start()
+        }
     }
 
     private fun immersive(hide: Boolean) {
@@ -837,17 +901,46 @@ class ReaderActivity : AppCompatActivity() {
         )
     }
 
-    /** 底部菜单两面板切换：选中 tab 用主题色加粗。 */
+    /** 主题色卡点选：即点即换即存，选中圈朱砂描边。 */
+    private fun setThemeIndex(idx: Int) {
+        if (themeIdx == idx) return
+        Haptics.tick(bind.root)
+        themeIdx = idx
+        bind.btnTheme.text = getString(R.string.reader_theme, theme.label)
+        renderThemeDots()
+        rebuild()
+    }
+
+    private fun renderThemeDots() {
+        bind.dotPaper.isSelected = themeIdx == 0
+        bind.dotSuede.isSelected = themeIdx == 1
+        bind.dotGreen.isSelected = themeIdx == 2
+        bind.dotNight.isSelected = themeIdx == 3
+    }
+
+    /** 拖动进度条时的页码气泡：跟随 thumb 位置。 */
+    private fun updateSeekBubble(sb: SeekBar, progress: Int) {
+        bind.seekBubble.text = if (flipMode) "${progress + 1} 页" else "${(progress / 10f).toInt()}%"
+        bind.seekBubble.post {
+            if (isFinishing || isDestroyed) return@post
+            val usable = (sb.width - sb.paddingLeft - sb.paddingRight).coerceAtLeast(1)
+            val x = sb.paddingLeft + usable * progress.toFloat() / sb.max.coerceAtLeast(1)
+            val maxX = (sb.width - bind.seekBubble.width).toFloat().coerceAtLeast(0f)
+            bind.seekBubble.translationX = (x - bind.seekBubble.width / 2f).coerceIn(0f, maxX)
+        }
+    }
+
+    /** 底部菜单两面板切换：选中 tab 下划线朱砂。 */
     private fun renderMenuTab() {
         val styleSel = menuTab == 0
+        bind.menuTabStyle.isSelected = styleSel
         bind.menuTabStyle.setTextColor(
-            getColor(if (styleSel) R.color.accent else R.color.galleryOnDark)
+            getColor(if (styleSel) R.color.galleryOnDark else R.color.gallerySubtle)
         )
-        bind.menuTabStyle.setTypeface(null, if (styleSel) Typeface.BOLD else Typeface.NORMAL)
+        bind.menuTabMore.isSelected = !styleSel
         bind.menuTabMore.setTextColor(
-            getColor(if (!styleSel) R.color.accent else R.color.galleryOnDark)
+            getColor(if (!styleSel) R.color.galleryOnDark else R.color.gallerySubtle)
         )
-        bind.menuTabMore.setTypeface(null, if (!styleSel) Typeface.BOLD else Typeface.NORMAL)
         bind.panelStyle.visibility = if (styleSel) View.VISIBLE else View.GONE
         bind.panelMore.visibility = if (styleSel) View.GONE else View.VISIBLE
     }
@@ -925,7 +1018,8 @@ class ReaderActivity : AppCompatActivity() {
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
     private fun trim(v: Float): String =
         if (v == v.toInt().toFloat()) v.toInt().toString() else v.toString()
-    private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+    private fun toast(msg: String) =
+        UiTips.snack(bind.root, msg, anchor = if (menuShown) bind.menuBottom else null)
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
@@ -935,6 +1029,16 @@ class ReaderActivity : AppCompatActivity() {
     override fun onPause() {
         saveProgress()
         super.onPause()
+    }
+
+    override fun finish() {
+        super.finish()
+        if (android.os.Build.VERSION.SDK_INT >= 34) {
+            overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_CLOSE, R.anim.lr_stay, R.anim.lr_exit)
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(R.anim.lr_stay, R.anim.lr_exit)
+        }
     }
 
     private val pageCallbacks = object : PageView.Callbacks {

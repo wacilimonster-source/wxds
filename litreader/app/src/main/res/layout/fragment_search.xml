@@ -6,35 +6,50 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- 搜索栏 -->
+    <!-- 搜索框：胶囊容器，聚焦描边转朱砂 -->
     <LinearLayout
+        android:id="@+id/searchField"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="16dp"
+        android:background="@drawable/bg_search_field_off"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginTop="14dp"
+        android:paddingStart="14dp"
         android:paddingEnd="6dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="8dp"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="44dp">
+
+        <ImageView
+            android:src="@drawable/ic_search"
+            android:importantForAccessibility="no"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            app:tint="@color/ink3" />
+
         <EditText
             android:id="@+id/etSearch"
             android:hint="输入标题关键词搜索"
-            android:textColorHint="@color/inkSecondary"
+            android:textColorHint="@color/ink3"
             android:textColor="@color/inkPrimary"
             android:background="@android:color/transparent"
             android:inputType="text"
             android:imeOptions="actionSearch"
             android:singleLine="true"
+            android:layout_marginStart="10dp"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="44dp" />
+            android:layout_height="match_parent"
+            android:backgroundTint="@android:color/transparent" />
+
         <ImageButton
             android:id="@+id/btnClear"
             android:contentDescription="清除"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:src="@drawable/ic_close"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/ink3" />
     </LinearLayout>
 
     <!-- 搜索历史（输入框为空且有过搜索时显示）：点击即搜，长按删除 -->
@@ -44,6 +59,7 @@
         android:visibility="gone"
         android:paddingStart="20dp"
         android:paddingEnd="12dp"
+        android:paddingTop="8dp"
         android:paddingBottom="6dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
@@ -69,52 +85,11 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content">
-            <com.google.android.material.button.MaterialButtonToggleGroup
-                android:id="@+id/zoneGroup"
-                app:singleSelection="true"
-                app:selectionRequired="true"
-                app:checkedButton="@id/btnZoneAll"
+            <LinearLayout
+                android:id="@+id/zoneRow"
+                android:orientation="horizontal"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content">
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnZoneAll"
-                    style="@style/Widget.Material3.Button.TonalButton"
-                    android:text="@string/filter_all"
-                    android:textSize="12sp"
-                    android:insetLeft="0dp"
-                    android:insetRight="0dp"
-                    android:minWidth="0dp"
-                    android:paddingStart="14dp"
-                    android:paddingEnd="14dp"
-                    android:layout_width="wrap_content"
-                    android:layout_height="34dp" />
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnZoneLit"
-                    style="@style/Widget.Material3.Button.TonalButton"
-                    android:text="@string/tab_lit"
-                    android:textSize="12sp"
-                    android:insetLeft="0dp"
-                    android:insetRight="0dp"
-                    android:minWidth="0dp"
-                    android:paddingStart="14dp"
-                    android:paddingEnd="14dp"
-                    android:layout_marginStart="6dp"
-                    android:layout_width="wrap_content"
-                    android:layout_height="34dp" />
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnZoneImg"
-                    style="@style/Widget.Material3.Button.TonalButton"
-                    android:text="@string/tab_img"
-                    android:textSize="12sp"
-                    android:insetLeft="0dp"
-                    android:insetRight="0dp"
-                    android:minWidth="0dp"
-                    android:paddingStart="14dp"
-                    android:paddingEnd="14dp"
-                    android:layout_marginStart="6dp"
-                    android:layout_width="wrap_content"
-                    android:layout_height="34dp" />
-            </com.google.android.material.button.MaterialButtonToggleGroup>
+                android:layout_height="wrap_content" />
         </HorizontalScrollView>
         <TextView
             android:id="@+id/tvSearchSort"
@@ -150,57 +125,35 @@
             android:visibility="gone"
             android:layout_width="match_parent"
             android:layout_height="match_parent">
+            <ImageView
+                android:src="@drawable/ic_empty_book"
+                android:importantForAccessibility="no"
+                android:layout_width="96dp"
+                android:layout_height="72dp"
+                android:alpha="0.9" />
             <TextView
                 android:id="@+id/tvEmptyTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="@color/inkPrimary"
-                android:textSize="15sp" />
+                android:textSize="15sp"
+                android:layout_marginTop="14dp" />
             <TextView
                 android:id="@+id/tvEmptyHint"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:textColor="@color/inkSecondary"
-                android:textSize="12sp" />
+                android:textSize="12sp"
+                android:gravity="center"
+                android:paddingStart="32dp"
+                android:paddingEnd="32dp" />
         </LinearLayout>
 
         <!-- 首屏加载骨架（呼吸动画） -->
-        <LinearLayout
+        <include
             android:id="@+id/skeleton"
-            android:orientation="vertical"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:paddingTop="8dp"
-            android:visibility="gone"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent">
-            <View
-                android:background="@drawable/bg_skeleton"
-                android:layout_marginBottom="8dp"
-                android:layout_width="match_parent"
-                android:layout_height="76dp" />
-            <View
-                android:background="@drawable/bg_skeleton"
-                android:layout_marginBottom="8dp"
-                android:layout_marginEnd="36dp"
-                android:layout_width="match_parent"
-                android:layout_height="76dp" />
-            <View
-                android:background="@drawable/bg_skeleton"
-                android:layout_marginBottom="8dp"
-                android:layout_width="match_parent"
-                android:layout_height="76dp" />
-            <View
-                android:background="@drawable/bg_skeleton"
-                android:layout_marginBottom="8dp"
-                android:layout_marginEnd="72dp"
-                android:layout_width="match_parent"
-                android:layout_height="76dp" />
-            <View
-                android:background="@drawable/bg_skeleton"
-                android:layout_width="match_parent"
-                android:layout_height="76dp" />
-        </LinearLayout>
+            layout="@layout/skeleton_cards"
+            android:visibility="gone" />
     </FrameLayout>
 </LinearLayout>

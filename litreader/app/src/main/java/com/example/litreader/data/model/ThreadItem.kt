@@ -10,5 +10,7 @@ data class ThreadItem(
     val category: String = "",
     val tag: String = "",
     val likes: String = "",
-    val replies: String = ""
+    val replies: String = "",
+    /** 列表行内懒加载首图地址（贴图区缩略卡用；无图为空串） */
+    val thumb: String = ""
 )

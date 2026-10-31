@@ -27,6 +27,15 @@ class PageView @JvmOverloads constructor(
     private var layout: StaticLayout? = null
     private var page: Paginator.Page? = null
 
+    /** 右缘翻页阴影：离场页掀起的视觉暗示。 */
+    private val edgeShadow = android.graphics.LinearGradient(
+        0f, 0f, 1f, 0f,
+        intArrayOf(0x00000000, 0x10000000),
+        floatArrayOf(0.55f, 1f),
+        android.graphics.Shader.TileMode.CLAMP
+    )
+    private val edgePaint = android.graphics.Paint().apply { shader = edgeShadow }
+
     private val gesture = GestureDetector(
         context,
         object : GestureDetector.SimpleOnGestureListener() {
@@ -76,7 +85,15 @@ class PageView @JvmOverloads constructor(
         canvas.translate(paddingLeft.toFloat(), paddingTop - p.top)
         l.draw(canvas)
         canvas.restore()
+        // 右缘阴影（18dp 渐变），盖在正文上但不侵入左缘
+        canvas.drawRect(
+            (width - paddingRight - dp(10)).toFloat(), paddingTop.toFloat(),
+            (width - paddingRight).toFloat(), (height - paddingBottom).toFloat(),
+            edgePaint
+        )
     }
+
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         gesture.onTouchEvent(event)

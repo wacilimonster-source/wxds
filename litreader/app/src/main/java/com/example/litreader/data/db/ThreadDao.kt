@@ -59,6 +59,10 @@ interface ThreadDao {
     @Query("UPDATE threads SET readState = 1 WHERE tid = :tid AND readState = 0")
     suspend fun markRead(tid: String)
 
+    /** 打开帖子后从正文缓存提取的首图（贴图列表缩略卡用）。 */
+    @Query("UPDATE threads SET thumb = :thumb WHERE tid = :tid AND thumb = ''")
+    suspend fun updateThumb(tid: String, thumb: String)
+
     @Query("UPDATE threads SET readState = 2 WHERE tid = :tid")
     suspend fun markFinished(tid: String)
 
@@ -80,6 +84,14 @@ interface ThreadDao {
 
     @Query("UPDATE threads SET lastOpenAt = 0 WHERE lastOpenAt > 0")
     suspend fun clearRecents()
+
+    /** 撤销清空：按快照成对恢复（Room 不支持批量键值对，逐条执行）。 */
+    suspend fun restoreLastOpenAt(snapshot: List<Pair<String, Long>>) {
+        snapshot.forEach { (tid, ts) -> restoreOne(tid, ts) }
+    }
+
+    @Query("UPDATE threads SET lastOpenAt = :ts WHERE tid = :tid")
+    suspend fun restoreOne(tid: String, ts: Long)
 
     @Query("SELECT favorite FROM threads WHERE tid = :tid")
     suspend fun isFavorite(tid: String): Boolean?

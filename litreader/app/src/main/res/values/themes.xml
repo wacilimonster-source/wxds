@@ -17,15 +17,60 @@
         <item name="android:color">@color/accentSoft</item>
     </style>
 
-    <style name="ReaderMenuItem">
-        <item name="android:textSize">13sp</item>
-        <item name="android:textColor">@color/galleryOnDark</item>
-        <item name="android:paddingStart">9dp</item>
-        <item name="android:paddingEnd">9dp</item>
-        <item name="android:paddingTop">8dp</item>
-        <item name="android:paddingBottom">8dp</item>
+    <!-- 统一胶囊 chip：描边底 → 选中 soft 填充（isSelected 驱动） -->
+    <style name="LitChip">
+        <item name="android:textSize">12sp</item>
+        <item name="android:background">@drawable/bg_chip</item>
+        <item name="android:textColor">@color/chip_text</item>
+        <item name="android:paddingStart">13dp</item>
+        <item name="android:paddingEnd">13dp</item>
+        <item name="android:paddingTop">5dp</item>
+        <item name="android:paddingBottom">5dp</item>
+        <item name="android:minHeight">30dp</item>
+        <item name="android:gravity">center</item>
         <item name="android:clickable">true</item>
-        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="android:focusable">true</item>
+    </style>
+
+    <!-- 分段控件（最近/收藏）：轨道 track + 选中面 surface 浮起 -->
+    <style name="SegmentGroup">
+        <item name="android:background">@drawable/bg_segment_track</item>
+        <item name="android:padding">3dp</item>
+    </style>
+
+    <style name="SegmentButton" parent="Widget.Material3.Button">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">@color/segment_btn_text</item>
+        <item name="backgroundTint">@color/segment_btn_bg</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:paddingStart">18dp</item>
+        <item name="android:paddingEnd">18dp</item>
+        <item name="android:paddingTop">5dp</item>
+        <item name="android:paddingBottom">5dp</item>
+        <item name="cornerRadius">999dp</item>
+        <item name="rippleColor">@android:color/transparent</item>
+        <item name="android:stateListAnimator">@null</item>
+        <item name="android:elevation">0dp</item>
+    </style>
+
+    <style name="ThumbShape">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">10dp</item>
+    </style>
+
+    <!-- 阅读器底部菜单项（暗色胶囊） -->
+    <style name="ReaderMenuItem">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">@color/galleryOnDark</item>
+        <item name="android:background">@drawable/bg_reader_menu_item</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingEnd">12dp</item>
+        <item name="android:paddingTop">6dp</item>
+        <item name="android:paddingBottom">6dp</item>
+        <item name="android:clickable">true</item>
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
     </style>

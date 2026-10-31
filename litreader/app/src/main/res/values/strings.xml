@@ -74,6 +74,25 @@
     <string name="jump_go">跳转</string>
     <string name="cancel">取消</string>
 
+    <!-- v0.23 精致化 -->
+    <string name="page_label">第 %1$d 页 · 共 %2$d 页 · 轻点跳页</string>
+    <string name="jump_sheet_title">跳转到页</string>
+    <string name="jump_total">共 %1$d 页</string>
+    <string name="jump_input_hint">或输入页码 1 - %1$d</string>
+    <string name="continue_reading">继续阅读</string>
+    <string name="reader_start_hint">从头开始</string>
+    <string name="continue_last">继续阅读 · %1$s</string>
+    <string name="undo">撤销</string>
+    <string name="fav_added">已加入书架</string>
+    <string name="fav_removed">已移出书架</string>
+    <string name="recent_cleared">已清空最近浏览</string>
+    <string name="empty_action_refresh">刷新试试</string>
+    <string name="empty_action_browse">去文学区逛逛</string>
+    <string name="time_just_now">刚刚</string>
+    <string name="time_minutes">%1$d 分钟前</string>
+    <string name="time_hours">%1$d 小时前</string>
+    <string name="time_days">%1$d 天前</string>
+
     <string name="reader_mode">阅读器模式</string>
     <string name="reader_forum">论坛模式</string>
     <string name="reader_floor_jump">楼层跳转</string>

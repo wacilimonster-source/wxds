@@ -60,6 +60,12 @@ abstract class T66yBaseSource : BookSource {
         val author = last?.parent()?.ownText()?.trim() ?: ""
         val ts = last?.attr("data-timestamp")?.toLongOrNull() ?: 0L
         val dateText = last?.text()?.trim() ?: ""
+        // 列表行内懒加载首图（贴图区有、文学区基本无）：ess-data / iyl-data / src 任一命中
+        val thumb = tr.selectFirst("img[ess-data], img[iyl-data], img[src]")?.let { el ->
+            val u = el.attr("ess-data").trim().ifEmpty { el.attr("iyl-data").trim() }
+                .ifEmpty { el.attr("src").trim() }
+            if (u.startsWith("data:") || u.endsWith(".gif") && u.contains("face")) "" else u
+        } ?: ""
         return ThreadItem(
             tid = tid,
             title = a.text().trim(),
@@ -70,7 +76,8 @@ abstract class T66yBaseSource : BookSource {
             category = category,
             tag = tag,
             likes = likes,
-            replies = replies
+            replies = replies,
+            thumb = thumb
         )
     }
 

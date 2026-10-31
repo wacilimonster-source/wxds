@@ -25,6 +25,8 @@ data class ThreadEntity(
     val tag: String = "",
     val likes: String = "",
     val replies: String = "",
+    /** 列表行内懒加载首图地址（贴图区缩略卡用；无图为空串） */
+    val thumb: String = "",
     /** 抓取自站点第几页（贴图区页码与站点对齐；文学区目录同步时同样记录） */
     val sitePage: Int = 0,
     /** 0=未读 1=已读（打开过） 2=已读完（手动标记） */

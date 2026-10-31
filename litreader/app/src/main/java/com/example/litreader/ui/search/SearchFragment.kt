@@ -1,6 +1,7 @@
 package com.example.litreader.ui.search
 
 import android.content.Context
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -9,7 +10,6 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.TextView
-import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
@@ -20,7 +20,9 @@ import com.example.litreader.data.db.ThreadEntity
 import com.example.litreader.databinding.FragmentSearchBinding
 import com.example.litreader.ui.list.ThreadAdapter
 import com.example.litreader.ui.main.MainActivity
+import com.example.litreader.util.Haptics
 import com.example.litreader.util.Skeleton
+import com.example.litreader.util.UiTips
 
 /** 搜索页签：常驻内存 + prefs 落盘，切走页签或重启后上次查询与结果保留。 */
 class SearchFragment : Fragment() {
@@ -30,6 +32,9 @@ class SearchFragment : Fragment() {
 
     /** 0=最新 1=最多点赞 2=最多回复 */
     private var sortMode = 0
+
+    private lateinit var fieldOff: Drawable
+    private lateinit var fieldOn: Drawable
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -46,21 +51,17 @@ class SearchFragment : Fragment() {
             this,
             SearchVmFactory((requireActivity().application as App).database, prefs)
         )[SearchViewModel::class.java]
-        adapter = ThreadAdapter({ open(it) }, { vm.toggleFavorite(it) }, showSection = true)
+        adapter = ThreadAdapter({ open(it) }, { onLongPress(it) }, showSection = true)
         bind.recycler.layoutManager = LinearLayoutManager(requireContext())
         bind.recycler.adapter = adapter
+
+        fieldOff = ContextCompat.getDrawable(requireContext(), R.drawable.bg_search_field_off)!!
+        fieldOn = ContextCompat.getDrawable(requireContext(), R.drawable.bg_search_field_on)!!
 
         // 恢复落盘的排序与区筛选（页面重建/App 重启后不丢）
         sortMode = prefs.getInt("sort", 0)
         vm.sortMode = sortMode
         vm.filter = prefs.getString("zone", "")?.takeIf { it.isNotEmpty() }
-        bind.zoneGroup.check(
-            when (vm.filter) {
-                MainActivity.SECTION_LIT -> R.id.btnZoneLit
-                MainActivity.SECTION_IMG -> R.id.btnZoneImg
-                else -> R.id.btnZoneAll
-            }
-        )
 
         bind.btnClear.setOnClickListener {
             bind.etSearch.setText("")
@@ -68,38 +69,36 @@ class SearchFragment : Fragment() {
             bind.etSearch.requestFocus()
         }
 
+        // 胶囊搜索框聚焦态：描边转朱砂
+        bind.etSearch.setOnFocusChangeListener { _, hasFocus ->
+            bind.searchField.background = if (hasFocus) fieldOn else fieldOff
+        }
+
         bind.etSearch.setOnEditorActionListener { _, _, _ ->
             val q = bind.etSearch.text.toString().trim()
             if (q.isNotEmpty()) {
                 bind.filterBar.visibility = View.VISIBLE
+                renderZoneChips()
                 vm.search(q)
                 bind.historyBar.visibility = View.GONE
             } else {
-                Toast.makeText(requireContext(), "请输入搜索关键词", Toast.LENGTH_SHORT).show()
+                UiTips.snack(bind.root, "请输入搜索关键词", anchor = bind.searchField)
             }
             hideKeyboard()
             true
         }
 
-        bind.zoneGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
-            if (!isChecked) return@addOnButtonCheckedListener
-            vm.applyFilter(
-                when (checkedId) {
-                    R.id.btnZoneLit -> MainActivity.SECTION_LIT
-                    R.id.btnZoneImg -> MainActivity.SECTION_IMG
-                    else -> null
-                }
-            )
-        }
         bind.tvSearchSort.setOnClickListener { showSortMenu() }
 
         vm.threads.observe(viewLifecycleOwner, ::render)
         vm.loading.observe(viewLifecycleOwner) { loading ->
-            if (loading && adapter.itemCount == 0) {
-                Skeleton.show(bind.skeleton)
+            // 竞态修复：DiffUtil 后台算，loading=false 时 itemCount 未必更新
+            val empty = vm.threads.value.isNullOrEmpty()
+            if (loading && empty) {
+                Skeleton.show(bind.skeleton.root)
                 bind.emptyBox.visibility = View.GONE
             } else {
-                Skeleton.hide(bind.skeleton)
+                Skeleton.hide(bind.skeleton.root)
                 if (!loading) render(vm.threads.value ?: emptyList())
             }
         }
@@ -111,10 +110,39 @@ class SearchFragment : Fragment() {
             bind.etSearch.setText(last)
             bind.etSearch.setSelection(0, last.length)
             bind.filterBar.visibility = View.VISIBLE
+            renderZoneChips()
             vm.search(last)
         } else {
             render(emptyList())
             renderHistory()
+        }
+    }
+
+    /** 区筛选 chips：全部 / 文学 / 贴图（统一胶囊规格，选择持久化）。 */
+    private fun renderZoneChips() {
+        val row = bind.zoneRow
+        row.removeAllViews()
+        val options = listOf(
+            null to getString(R.string.filter_all),
+            MainActivity.SECTION_LIT to getString(R.string.tab_lit),
+            MainActivity.SECTION_IMG to getString(R.string.tab_img)
+        )
+        options.forEach { (value, label) ->
+            val tv = TextView(requireContext(), null, 0, R.style.LitChip).apply {
+                text = label
+                isSelected = vm.filter == value
+                setOnClickListener {
+                    Haptics.tick(this)
+                    if (vm.filter != value) {
+                        vm.applyFilter(value)  // VM 内部持久化 zone
+                        renderZoneChips()
+                    }
+                }
+            }
+            tv.layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { marginEnd = (8 * resources.displayMetrics.density).toInt() }
+            row.addView(tv)
         }
     }
 
@@ -125,32 +153,29 @@ class SearchFragment : Fragment() {
             if (bind.etSearch.text.isNullOrBlank() && items.isNotEmpty()) View.VISIBLE else View.GONE
         val row = bind.historyRow
         row.removeAllViews()
-        val padH = (10 * resources.displayMetrics.density).toInt()
-        val padV = (5 * resources.displayMetrics.density).toInt()
         items.forEach { kw ->
-            val tv = TextView(requireContext()).apply {
+            val tv = TextView(requireContext(), null, 0, R.style.LitChip).apply {
                 text = kw
-                textSize = 12f
-                setTextColor(ContextCompat.getColor(requireContext(), R.color.inkSecondary))
-                setBackgroundResource(R.drawable.bg_tag)
-                setPadding(padH, padV, padH, padV)
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-                ).apply { marginEnd = (8 * resources.displayMetrics.density).toInt() }
                 setOnClickListener {
+                    Haptics.tick(this)
                     bind.etSearch.setText(kw)
                     bind.etSearch.setSelection(kw.length)
                     bind.filterBar.visibility = View.VISIBLE
+                    renderZoneChips()
                     bind.historyBar.visibility = View.GONE
                     vm.search(kw)
                     hideKeyboard()
                 }
                 setOnLongClickListener {
+                    Haptics.key(this)
                     vm.removeHistory(kw)
                     renderHistory()
                     true
                 }
             }
+            tv.layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { marginEnd = (8 * resources.displayMetrics.density).toInt() }
             row.addView(tv)
         }
     }
@@ -195,6 +220,19 @@ class SearchFragment : Fragment() {
             true
         }
         popup.show()
+    }
+
+    /** 长按收藏：状态翻转 + 轻提示（可撤销）+ 成功节奏触感。 */
+    private fun onLongPress(t: ThreadEntity) {
+        val adding = !t.favorite
+        vm.toggleFavorite(t)
+        if (adding) Haptics.confirm(bind.root)
+        UiTips.snack(
+            bind.root,
+            getString(if (adding) R.string.fav_added else R.string.fav_removed),
+            getString(R.string.undo),
+            onAction = { vm.toggleFavorite(t.copy(favorite = adding)) }
+        )
     }
 
     private fun open(t: ThreadEntity) = com.example.litreader.ui.ThreadNav.open(requireContext(), t)

@@ -9,7 +9,16 @@
     <color name="bgSurface">#1F1B15</color>
     <color name="inkPrimary">#EDE5D8</color>
     <color name="inkSecondary">#A3988A</color>
+    <color name="ink3">#7D7364</color>
     <color name="divider">#2E2820</color>
     <color name="catTextSelected">#3B241A</color>
     <color name="catTextNormal">#D08066</color>
+    <color name="success">#8FAF8F</color>
+    <color name="danger">#D07862</color>
+    <color name="segmentTrack">#1FEDE5D8</color>
+    <color name="snackBg">#3A342B</color>
+    <color name="snackFg">#EDE5D8</color>
+    <color name="snackAction">#D08066</color>
+    <color name="shimmerBase">#2A241C</color>
+    <color name="accentStroke">#8CD08066</color>
 </resources>

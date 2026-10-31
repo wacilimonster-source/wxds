@@ -13,6 +13,10 @@ class FavoritesViewModel(private val repo: BookRepository) : ViewModel() {
     private val _loading = MutableLiveData(false)
     val loading: LiveData<Boolean> = _loading
 
+    /** 「继续阅读」置顶卡：最近段 + 全部区时的最新一条浏览记录。 */
+    private val _recent = MutableLiveData<ThreadEntity?>()
+    val recent: LiveData<ThreadEntity?> = _recent
+
     /** null = 全部区；否则为 sourceId。 */
     var filter: String? = null
 
@@ -34,16 +38,29 @@ class FavoritesViewModel(private val repo: BookRepository) : ViewModel() {
         _loading.value = true
         viewModelScope.launch {
             try {
-                _threads.value = if (sectionFavorites) repo.favorites(filter) else repo.recents(filter)
+                val list = if (sectionFavorites) repo.favorites(filter) else repo.recents(filter)
+                _threads.value = list
+                _recent.value =
+                    if (!sectionFavorites && filter == null) list.firstOrNull() else null
             } catch (_: Exception) {}
             finally { _loading.value = false }
         }
     }
 
-    /** 清空最近浏览（仅最近段入口）。 */
-    fun clearRecents() {
+    /** 清空最近浏览；快照经回调交 Snackbar 撤销。 */
+    fun clearRecents(onCleared: (List<Pair<String, Long>>) -> Unit) {
         viewModelScope.launch {
+            val snap = try { repo.recentsSnapshot() } catch (_: Exception) { emptyList() }
             try { repo.clearRecents() } catch (_: Exception) {}
+            onCleared(snap)
+            load()
+        }
+    }
+
+    /** 撤销清空：按快照恢复浏览时间。 */
+    fun restoreRecents(snap: List<Pair<String, Long>>) {
+        viewModelScope.launch {
+            try { repo.restoreRecents(snap) } catch (_: Exception) {}
             load()
         }
     }

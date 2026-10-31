@@ -7,27 +7,32 @@
     android:layout_marginEnd="16dp"
     android:layout_marginTop="6dp"
     android:layout_marginBottom="2dp"
+    android:clickable="true"
+    android:focusable="true"
     app:cardBackgroundColor="@color/bgSurface"
     app:cardCornerRadius="14dp"
     app:cardElevation="0dp"
     app:strokeWidth="1dp"
     app:strokeColor="@color/divider">
 
-    <LinearLayout
-        android:orientation="horizontal"
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:paddingStart="16dp"
-        android:paddingEnd="12dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="14dp"
-        android:gravity="center_vertical"
+        android:paddingEnd="14dp"
+        android:paddingTop="13dp"
+        android:paddingBottom="13dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
         <LinearLayout
+            android:id="@+id/cbody"
             android:orientation="vertical"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/side"
+            app:layout_constraintHorizontal_bias="0"
             android:layout_width="0dp"
-            android:layout_weight="1"
             android:layout_height="wrap_content">
+
             <TextView
                 android:id="@+id/tvTitle"
                 android:textSize="16sp"
@@ -37,53 +42,71 @@
                 android:lineSpacingExtra="2dp"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
+
             <LinearLayout
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="7dp"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
+
                 <TextView
                     android:id="@+id/tvTag"
-                    android:textSize="11sp"
-                    android:textColor="@color/catTextNormal"
-                    android:background="@drawable/bg_tag"
-                    android:paddingStart="7dp"
-                    android:paddingEnd="7dp"
+                    android:textSize="10.5sp"
+                    android:textColor="@color/accentDeep"
+                    android:background="@drawable/bg_tagpill"
+                    android:paddingStart="9dp"
+                    android:paddingEnd="9dp"
                     android:paddingTop="2dp"
                     android:paddingBottom="2dp"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content" />
+
                 <TextView
                     android:id="@+id/tvMeta"
-                    android:textSize="12sp"
+                    android:textSize="11.5sp"
                     android:textColor="@color/inkSecondary"
+                    android:singleLine="true"
+                    android:ellipsize="end"
                     android:layout_marginStart="8dp"
-                    android:layout_width="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content" />
+
                 <TextView
                     android:id="@+id/tvReadMark"
-                    android:textSize="10sp"
+                    android:textSize="9.5sp"
+                    android:textColor="@color/inkSecondary"
+                    android:background="@drawable/bg_badge"
+                    android:paddingStart="7dp"
+                    android:paddingEnd="7dp"
+                    android:paddingTop="1.5dp"
+                    android:paddingBottom="1.5dp"
                     android:layout_marginStart="6dp"
-                    android:visibility="gone"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content" />
             </LinearLayout>
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/side"
             android:orientation="vertical"
             android:gravity="end|center_vertical"
             android:layout_marginStart="10dp"
+            app:layout_constraintEnd_toStartOf="@id/imgThumb"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="@id/cbody"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content">
+
             <ImageView
                 android:id="@+id/imgFav"
                 android:src="@drawable/ic_star_fill"
                 android:importantForAccessibility="no"
-                android:layout_width="16dp"
-                android:layout_height="16dp"
+                android:layout_width="15dp"
+                android:layout_height="15dp"
                 app:tint="@color/accent" />
+
             <TextView
                 android:id="@+id/tvLikes"
                 android:textSize="11sp"
@@ -92,5 +115,33 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content" />
         </LinearLayout>
-    </LinearLayout>
+
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/imgThumb"
+            android:visibility="gone"
+            android:importantForAccessibility="no"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:layout_marginStart="10dp"
+            android:scaleType="centerCrop"
+            app:shapeAppearanceOverlay="@style/ThumbShape"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
+
+        <!-- 底部阅读进度细线（已读部分进度 / 已读完满条） -->
+        <ProgressBar
+            android:id="@+id/progressLine"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:visibility="gone"
+            android:layout_width="0dp"
+            android:layout_height="2dp"
+            android:layout_marginTop="10dp"
+            android:progressDrawable="@drawable/bg_progress_thin"
+            android:max="100"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/cbody"
+            app:layout_constraintBottom_toBottomOf="parent" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
 </com.google.android.material.card.MaterialCardView>

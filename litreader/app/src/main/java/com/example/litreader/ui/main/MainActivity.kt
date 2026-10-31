@@ -24,6 +24,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(bind.root)
 
         bind.bottomNav.setOnItemSelectedListener { item ->
+            com.example.litreader.util.Haptics.tick(bind.bottomNav)
             when (item.itemId) {
                 R.id.tab_lit -> { show(TAG_LIT); true }
                 R.id.tab_img -> { show(TAG_IMG); true }
@@ -66,12 +67,17 @@ class MainActivity : AppCompatActivity() {
 
     /** 列表页放大镜入口：切到搜索页签；focus=true 时聚焦输入框并弹键盘。 */
     fun openSearch(focus: Boolean) {
-        if (bind.bottomNav.selectedItemId != R.id.tab_search) {
-            bind.bottomNav.selectedItemId = R.id.tab_search
-            supportFragmentManager.executePendingTransactions()
-        }
+        switchTab(R.id.tab_search)
         if (focus) {
             (supportFragmentManager.findFragmentByTag(TAG_SEARCH) as? SearchFragment)?.focusInput()
+        }
+    }
+
+    /** 供空态行动按钮等跨页签跳转使用（幂等：已在目标页签则不动）。 */
+    fun switchTab(itemId: Int) {
+        if (bind.bottomNav.selectedItemId != itemId) {
+            bind.bottomNav.selectedItemId = itemId
+            supportFragmentManager.executePendingTransactions()
         }
     }
 

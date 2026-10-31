@@ -11,6 +11,10 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
+import com.example.litreader.util.Haptics
+import com.example.litreader.util.UiTips
 import android.util.LruCache
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -86,7 +90,8 @@ class GalleryActivity : AppCompatActivity() {
                 val ok = withContext(Dispatchers.IO) {
                     MediaSaver.saveToGallery(applicationContext, bytes, url)
                 }
-                toast(getString(if (ok) R.string.save_done else R.string.save_failed))
+                if (ok) Haptics.key(bind.root)
+                snack(getString(if (ok) R.string.save_done else R.string.save_failed))
             } catch (e: Exception) {
                 toast(getString(R.string.save_failed))
             } finally {
@@ -120,15 +125,39 @@ class GalleryActivity : AppCompatActivity() {
 
     private fun toggleBars() {
         barsVisible = !barsVisible
-        bind.topBar.visibility = if (barsVisible) View.VISIBLE else View.GONE
-        bind.bottomBar.visibility = if (barsVisible) View.VISIBLE else View.GONE
+        val dur = 200L
+        val top = bind.topBar
+        val bottom = bind.bottomBar
+        if (barsVisible) {
+            top.visibility = View.VISIBLE
+            bottom.visibility = View.VISIBLE
+            top.translationY = -top.height * 0.6f - 1f
+            bottom.translationY = bottom.height * 0.6f + 1f
+            top.alpha = 0f
+            bottom.alpha = 0f
+            top.animate().translationY(0f).alpha(1f).setDuration(dur)
+                .setInterpolator(DecelerateInterpolator()).start()
+            bottom.animate().translationY(0f).alpha(1f).setDuration(dur)
+                .setInterpolator(DecelerateInterpolator()).start()
+        } else {
+            top.animate().translationY(-top.height * 0.6f - 1f).alpha(0f).setDuration(dur)
+                .setInterpolator(AccelerateInterpolator())
+                .withEndAction { top.visibility = View.GONE }.start()
+            bottom.animate().translationY(bottom.height * 0.6f + 1f).alpha(0f).setDuration(dur)
+                .setInterpolator(AccelerateInterpolator())
+                .withEndAction { bottom.visibility = View.GONE }.start()
+        }
     }
 
     private fun updateCounter() {
         bind.tvCounter.text = getString(R.string.gallery_counter, bind.pager.currentItem + 1, urls.size)
     }
 
-    private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+    private fun toast(msg: String) = snack(msg)
+
+    private fun snack(msg: String) = UiTips.snack(
+        bind.root, msg, anchor = if (barsVisible) bind.bottomBar else null
+    )
 }
 
 /** 图片内存缓存 + 后台解码。 */

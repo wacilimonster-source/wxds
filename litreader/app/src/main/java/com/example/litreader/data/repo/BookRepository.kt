@@ -34,7 +34,8 @@ class BookRepository(
         category = it.category,
         tag = it.tag,
         likes = it.likes,
-        replies = it.replies
+        replies = it.replies,
+        thumb = it.thumb
     )
 
     /** 目录页落库：盖 sitePage 章 + 保护已有收藏/已读/浏览时间（否则 REPLACE 会重置）。 */
@@ -237,6 +238,16 @@ class BookRepository(
     /** 清空最近浏览（只清时间戳，不动帖子数据）。 */
     suspend fun clearRecents() = db.threadDao().clearRecents()
 
+    /** 清空前先取快照（tid→时间），供 Snackbar 撤销恢复。 */
+    suspend fun recentsSnapshot(): List<Pair<String, Long>> =
+        db.threadDao().all().filter { it.lastOpenAt > 0 }.map { it.tid to it.lastOpenAt }
+
+    /** 撤销清空：按快照恢复 lastOpenAt（trimRecents 的上限裁剪也一并还原）。 */
+    suspend fun restoreRecents(snapshot: List<Pair<String, Long>>) {
+        if (snapshot.isEmpty()) return
+        db.threadDao().restoreLastOpenAt(snapshot)
+    }
+
     suspend fun categoryCount(sourceId: String, category: String, tag: String = "", readFilter: Int = -1): Int =
         if (category.isEmpty() && tag.isEmpty() && readFilter == -1) db.threadDao().totalCount(sourceId)
         else db.threadDao().countByCategory(sourceId, category, tag, readFilter)
@@ -273,7 +284,18 @@ class BookRepository(
         }
         val posts = source(sourceId).getThread(tid, onlyOp)
         db.threadContentDao().upsert(ThreadContentEntity(tid, onlyOp, encodePosts(posts), System.currentTimeMillis()))
+        extractThumb(tid, posts)
         return posts to false
+    }
+
+    /** 正文缓存落库后顺手提取首个图片地址：列表卡片（贴图区）以后显示缩略。 */
+    private suspend fun extractThumb(tid: String, posts: List<Post>) {
+        val src = posts.asSequence()
+            .map { Regex("""<img[^>]+(?:ess-data|iyl-data|src)="([^"]+)"""").find(it.contentHtml) }
+            .firstNotNullOfOrNull { it?.groupValues?.get(1) }
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() && !it.startsWith("data:") } ?: return
+        runCatching { db.threadDao().updateThumb(tid, src) }
     }
 
     private fun encodePosts(posts: List<Post>): String = org.json.JSONArray().apply {

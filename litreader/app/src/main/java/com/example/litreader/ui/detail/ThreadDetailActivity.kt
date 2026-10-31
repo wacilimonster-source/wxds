@@ -43,12 +43,29 @@ class ThreadDetailActivity : AppCompatActivity() {
         private const val PREF_FONT = "reader_font"
     }
 
+    override fun finish() {
+        super.finish()
+        if (android.os.Build.VERSION.SDK_INT >= 34) {
+            overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_CLOSE, R.anim.lr_stay, R.anim.lr_exit)
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(R.anim.lr_stay, R.anim.lr_exit)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         bind = ActivityDetailBinding.inflate(layoutInflater)
         setContentView(bind.root)
         repo = BookRepository((application as App).database)
 
+        // 与阅读器同款进出转场
+        if (android.os.Build.VERSION.SDK_INT >= 34) {
+            overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_OPEN, R.anim.lr_enter, R.anim.lr_stay)
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(R.anim.lr_enter, R.anim.lr_stay)
+        }
         tid = intent.getStringExtra("tid") ?: return finish()
         val chapterTitle = intent.getStringExtra("title") ?: ""
         bind.tvChapter.text = chapterTitle

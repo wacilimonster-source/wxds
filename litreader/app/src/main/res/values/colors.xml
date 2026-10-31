@@ -9,9 +9,24 @@
     <color name="bgSurface">#FFFFFF</color>
     <color name="inkPrimary">#241E17</color>
     <color name="inkSecondary">#6E6354</color>
+    <!-- 墨三级：角标/徽标/弱标题（已读置灰） -->
+    <color name="ink3">#9A8E7E</color>
     <color name="divider">#EAE2D6</color>
     <color name="catTextSelected">#FFFFFF</color>
     <color name="catTextNormal">#9A4A36</color>
+    <!-- 语义色 -->
+    <color name="success">#5A7D5A</color>
+    <color name="danger">#A8402F</color>
+    <!-- 分段控件轨道（墨色 6% 叠加） -->
+    <color name="segmentTrack">#0F241E17</color>
+    <!-- Snackbar（深墨底浅字，两套主题统一） -->
+    <color name="snackBg">#2A251E</color>
+    <color name="snackFg">#F3EEE4</color>
+    <color name="snackAction">#E3A591</color>
+    <!-- 骨架屏基色 -->
+    <color name="shimmerBase">#F1EAE0</color>
+    <!-- 胶囊描边（选中 chip 的朱砂 45%） -->
+    <color name="accentStroke">#73B4543E</color>
     <!-- 画廊固定深色（不随日夜切换） -->
     <color name="galleryBg">#000000</color>
     <color name="galleryOnDark">#EDE5D8</color>
@@ -19,5 +34,5 @@
     <!-- 阅读器菜单底 -->
     <color name="readerMenuBg">#E6141414</color>
     <!-- 图标底（墨色，图标不随日夜切换） -->
-    <color name="ic_launcher_bg">#241E17</color>
+    <color name="ic_launcher_bg">#FAF6EF</color>
 </resources>
