@@ -262,6 +262,9 @@ class BookRepository(
 
     suspend fun readState(tid: String): Int = db.threadDao().byId(tid)?.readState ?: 0
 
+    /** 单条回读（阅读器返回时只刷新变动条目，避免整页/整表重查）。 */
+    suspend fun byId(tid: String): ThreadEntity? = db.threadDao().byId(tid)
+
     /** 本地标题搜索（已入库缓存）；filter 为 null 时跨区，否则限单区。 */
     suspend fun search(q: String, filter: String?): List<ThreadEntity> =
         if (filter == null) db.threadDao().searchAll("%$q%")

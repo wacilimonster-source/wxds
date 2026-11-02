@@ -200,6 +200,7 @@
             android:orientation="horizontal"
             android:gravity="start|center_vertical"
             android:paddingTop="8dp"
+            android:paddingBottom="12dp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
             <TextView
@@ -242,10 +243,26 @@
                 android:orientation="vertical"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
-                <LinearLayout
-                    android:orientation="horizontal"
+
+                <!-- 自适应换行：窄屏/大字号时自动排到下一行，不再横向挤出屏幕 -->
+                <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
+
+                    <androidx.constraintlayout.helper.widget.Flow
+                        android:id="@+id/flowText"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        app:constraint_referenced_ids="btnFontDown,tvFont,btnFontUp,btnLine,btnPad,btnFontFamily"
+                        app:flow_horizontalAlign="start"
+                        app:flow_horizontalGap="8dp"
+                        app:flow_verticalAlign="center"
+                        app:flow_verticalGap="8dp"
+                        app:flow_wrapMode="aligned"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent" />
+
                     <TextView
                         android:id="@+id/btnFontDown"
                         android:text="A−"
@@ -257,7 +274,6 @@
                         android:textColor="@color/gallerySubtle"
                         android:gravity="center"
                         android:minWidth="22dp"
-                        android:layout_gravity="center_vertical"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content" />
                     <TextView
@@ -266,24 +282,36 @@
                         style="@style/ReaderMenuItem" />
                     <TextView
                         android:id="@+id/btnLine"
-                        style="@style/ReaderMenuItem"
-                        android:layout_marginStart="8dp" />
+                        style="@style/ReaderMenuItem" />
                     <TextView
                         android:id="@+id/btnPad"
-                        style="@style/ReaderMenuItem"
-                        android:layout_marginStart="8dp" />
+                        style="@style/ReaderMenuItem" />
                     <TextView
                         android:id="@+id/btnFontFamily"
-                        style="@style/ReaderMenuItem"
-                        android:layout_marginStart="8dp" />
-                </LinearLayout>
+                        style="@style/ReaderMenuItem" />
+                </androidx.constraintlayout.widget.ConstraintLayout>
 
-                <LinearLayout
-                    android:orientation="horizontal"
+                <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_marginTop="12dp"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
+
+                    <androidx.constraintlayout.helper.widget.Flow
+                        android:id="@+id/flowTheme"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        app:constraint_referenced_ids="itemPaper,itemSuede,itemGreen,itemNight,btnTheme"
+                        app:flow_horizontalAlign="start"
+                        app:flow_horizontalGap="14dp"
+                        app:flow_verticalAlign="center"
+                        app:flow_verticalGap="8dp"
+                        app:flow_wrapMode="aligned"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent" />
+
                     <LinearLayout
+                        android:id="@+id/itemPaper"
                         android:orientation="vertical"
                         android:gravity="center_horizontal"
                         android:layout_width="wrap_content"
@@ -301,10 +329,11 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content" />
                     </LinearLayout>
+
                     <LinearLayout
+                        android:id="@+id/itemSuede"
                         android:orientation="vertical"
                         android:gravity="center_horizontal"
-                        android:layout_marginStart="14dp"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content">
                         <View
@@ -320,10 +349,11 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content" />
                     </LinearLayout>
+
                     <LinearLayout
+                        android:id="@+id/itemGreen"
                         android:orientation="vertical"
                         android:gravity="center_horizontal"
-                        android:layout_marginStart="14dp"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content">
                         <View
@@ -339,10 +369,11 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content" />
                     </LinearLayout>
+
                     <LinearLayout
+                        android:id="@+id/itemNight"
                         android:orientation="vertical"
                         android:gravity="center_horizontal"
-                        android:layout_marginStart="14dp"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content">
                         <View
@@ -361,10 +392,8 @@
 
                     <TextView
                         android:id="@+id/btnTheme"
-                        style="@style/ReaderMenuItem"
-                        android:layout_gravity="center_vertical"
-                        android:layout_marginStart="14dp" />
-                </LinearLayout>
+                        style="@style/ReaderMenuItem" />
+                </androidx.constraintlayout.widget.ConstraintLayout>
             </LinearLayout>
 
             <!-- 更多面板 -->
@@ -374,32 +403,59 @@
                 android:visibility="gone"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
-                <LinearLayout
-                    android:orientation="horizontal"
+
+                <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
+
+                    <androidx.constraintlayout.helper.widget.Flow
+                        android:id="@+id/flowMore1"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        app:constraint_referenced_ids="btnFlip,btnMarks,btnFinished,btnFloorJump"
+                        app:flow_horizontalAlign="start"
+                        app:flow_horizontalGap="8dp"
+                        app:flow_verticalAlign="center"
+                        app:flow_verticalGap="8dp"
+                        app:flow_wrapMode="aligned"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent" />
+
                     <TextView
                         android:id="@+id/btnFlip"
                         style="@style/ReaderMenuItem" />
                     <TextView
                         android:id="@+id/btnMarks"
-                        style="@style/ReaderMenuItem"
-                        android:layout_marginStart="8dp" />
+                        style="@style/ReaderMenuItem" />
                     <TextView
                         android:id="@+id/btnFinished"
-                        style="@style/ReaderMenuItem"
-                        android:layout_marginStart="8dp" />
+                        style="@style/ReaderMenuItem" />
                     <TextView
                         android:id="@+id/btnFloorJump"
                         android:text="@string/reader_floor_jump"
-                        style="@style/ReaderMenuItem"
-                        android:layout_marginStart="8dp" />
-                </LinearLayout>
-                <LinearLayout
-                    android:orientation="horizontal"
+                        style="@style/ReaderMenuItem" />
+                </androidx.constraintlayout.widget.ConstraintLayout>
+
+                <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_marginTop="8dp"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
+
+                    <androidx.constraintlayout.helper.widget.Flow
+                        android:id="@+id/flowMore2"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        app:constraint_referenced_ids="btnForum,btnSearch,btnAutoFinish,btnVolume,btnAwake"
+                        app:flow_horizontalAlign="start"
+                        app:flow_horizontalGap="8dp"
+                        app:flow_verticalAlign="center"
+                        app:flow_verticalGap="8dp"
+                        app:flow_wrapMode="aligned"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent" />
+
                     <TextView
                         android:id="@+id/btnForum"
                         android:text="@string/reader_forum"
@@ -407,21 +463,17 @@
                     <TextView
                         android:id="@+id/btnSearch"
                         android:text="搜索"
-                        style="@style/ReaderMenuItem"
-                        android:layout_marginStart="8dp" />
+                        style="@style/ReaderMenuItem" />
                     <TextView
                         android:id="@+id/btnAutoFinish"
-                        style="@style/ReaderMenuItem"
-                        android:layout_marginStart="8dp" />
+                        style="@style/ReaderMenuItem" />
                     <TextView
                         android:id="@+id/btnVolume"
-                        style="@style/ReaderMenuItem"
-                        android:layout_marginStart="8dp" />
+                        style="@style/ReaderMenuItem" />
                     <TextView
                         android:id="@+id/btnAwake"
-                        style="@style/ReaderMenuItem"
-                        android:layout_marginStart="8dp" />
-                </LinearLayout>
+                        style="@style/ReaderMenuItem" />
+                </androidx.constraintlayout.widget.ConstraintLayout>
             </LinearLayout>
         </FrameLayout>
     </LinearLayout>

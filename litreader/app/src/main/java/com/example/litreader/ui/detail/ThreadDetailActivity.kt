@@ -15,6 +15,7 @@ import com.example.litreader.data.repo.BookRepository
 import com.example.litreader.data.source.SourceRegistry
 import com.example.litreader.databinding.ActivityDetailBinding
 import com.example.litreader.ui.reader.ReaderActivity
+import com.example.litreader.util.ReadProgress
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +52,12 @@ class ThreadDetailActivity : AppCompatActivity() {
             @Suppress("DEPRECATION")
             overridePendingTransition(R.anim.lr_stay, R.anim.lr_exit)
         }
+    }
+
+    override fun onPause() {
+        // 收藏/已读可能在这里变过：通知列表只回读这一条
+        ReadProgress.markDirty(this, sourceId, tid)
+        super.onPause()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

@@ -46,6 +46,7 @@ import kotlinx.coroutines.launch
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
 import com.example.litreader.util.Haptics
+import com.example.litreader.util.ReadProgress
 import com.example.litreader.util.UiTips
 import kotlinx.coroutines.withContext
 import kotlin.math.max
@@ -90,7 +91,8 @@ class ReaderActivity : AppCompatActivity() {
     private var restoredOnce = false
     /** 本次打开的目标恢复点：恢复完成前，任何尺寸变化/图片重排的 rebuild 都用它，避免被第 1 页覆盖。 */
     private var openRestoreOffset = -1
-    private var menuShown = true
+    /** 进入阅读即沉浸：菜单默认收起，点正文中间才呼出。 */
+    private var menuShown = false
     private var finished = false
 
     private val themes = ReaderThemeSet.values()
@@ -163,8 +165,13 @@ class ReaderActivity : AppCompatActivity() {
         }
         setupMenu()
         setupContainers()
+        // 菜单保持 INVISIBLE（而非 GONE）：不绘制、不拦截触摸，但仍参与测量，
+        // 首次呼出时上滑/下滑动效才能拿到真实高度
+        bind.menuTop.visibility = View.INVISIBLE
+        bind.menuBottom.visibility = View.INVISIBLE
         applyThemeColors()
         applyKeepAwake()
+        immersive(true)
         load()
     }
 
@@ -551,10 +558,10 @@ class ReaderActivity : AppCompatActivity() {
         bind.btnTheme.setOnClickListener {
             setThemeIndex((themeIdx + 1) % themes.size)
         }
-        bind.dotPaper.setOnClickListener { setThemeIndex(0) }
-        bind.dotSuede.setOnClickListener { setThemeIndex(1) }
-        bind.dotGreen.setOnClickListener { setThemeIndex(2) }
-        bind.dotNight.setOnClickListener { setThemeIndex(3) }
+        bind.itemPaper.setOnClickListener { setThemeIndex(0) }
+        bind.itemSuede.setOnClickListener { setThemeIndex(1) }
+        bind.itemGreen.setOnClickListener { setThemeIndex(2) }
+        bind.itemNight.setOnClickListener { setThemeIndex(3) }
         bind.btnPad.setOnClickListener {
             Haptics.tick(bind.root)
             padIdx = (padIdx + 1) % padPresets.size
@@ -818,10 +825,10 @@ class ReaderActivity : AppCompatActivity() {
         } else {
             top.animate().translationY(-top.height * 0.6f - 1f).alpha(0f).setDuration(dur)
                 .setInterpolator(AccelerateInterpolator())
-                .withEndAction { top.visibility = View.GONE }.start()
+                .withEndAction { top.visibility = View.INVISIBLE }.start()
             bottom.animate().translationY(bottom.height * 0.6f + 1f).alpha(0f).setDuration(dur)
                 .setInterpolator(AccelerateInterpolator())
-                .withEndAction { bottom.visibility = View.GONE }.start()
+                .withEndAction { bottom.visibility = View.INVISIBLE }.start()
         }
     }
 
@@ -1028,6 +1035,8 @@ class ReaderActivity : AppCompatActivity() {
 
     override fun onPause() {
         saveProgress()
+        // 列表页只回读这一条，避免返回时整表重查
+        if (loaded) ReadProgress.markDirty(this, sourceId, tid)
         super.onPause()
     }
 

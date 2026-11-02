@@ -55,6 +55,8 @@ class ThreadListViewModel(
     private var totalCount = 0
     private var siteTotalPages = 0
     private var validPages = 0
+    /** 标签聚合只在首次/目录同步后重查；切筛选或翻页时复用，省一次 GROUP BY。 */
+    private var tagsLoaded = false
 
     /** 文学区 30 条/页（本地目录）；贴图区 100 条/页（与站点页对齐，有效页深以探测值为准）。 */
     val totalPages: Int
@@ -100,7 +102,10 @@ class ThreadListViewModel(
                     _tags.value = emptyList()
                 } else {
                     totalCount = repo.categoryCount(sourceId, category, tag, readFilter)
-                    _tags.value = repo.tagCounts(sourceId)
+                    if (!tagsLoaded) {
+                        _tags.value = repo.tagCounts(sourceId)
+                        tagsLoaded = true
+                    }
                 }
                 _error.value = if (list.isEmpty() && page == 1 && !reloading && !force) "暂无数据" else null
             } catch (e: Exception) {
@@ -141,6 +146,28 @@ class ThreadListViewModel(
         }
     }
 
+    /**
+     * 从阅读器/论坛详情返回：只回读变化的那一条并合并进当前列表。
+     * 相比 reloadLoadedPages 的整页重查，返回列表时不再重算已加载的所有条目。
+     */
+    fun refreshThread(tid: String) {
+        if (tid.isEmpty()) return
+        viewModelScope.launch {
+            val fresh = runCatching { repo.byId(tid) }.getOrNull() ?: return@launch
+            val idx = accumulated.indexOfFirst { it.tid == tid }
+            if (idx < 0) {
+                // 已读筛选下，从别处读完的帖子可能刚好该补进当前列表：退回整页重查
+                if (readFilter != -1) reloadLoadedPages()
+                return@launch
+            }
+            // 当前正按已读状态筛选时，刚读过的帖子要从「未读」等列表里移除
+            val matchesFilter = readFilter == -1 || fresh.readState == readFilter
+            if (matchesFilter && accumulated[idx] == fresh) return@launch
+            if (matchesFilter) accumulated[idx] = fresh else accumulated.removeAt(idx)
+            _threads.value = filtered()
+        }
+    }
+
     /** 页签返回/目录同步完成后刷新已加载各页的元数据（已读标记等）；图片页全走缓存，瞬间完成。 */
     fun reloadLoadedPages() {
         val end = page
@@ -157,7 +184,10 @@ class ThreadListViewModel(
                 accumulated += all
                 noMore = false
                 _threads.value = filtered()
-                if (!isImage) _tags.value = repo.tagCounts(sourceId)
+                if (!isImage) {
+                    _tags.value = repo.tagCounts(sourceId)
+                    tagsLoaded = true
+                }
             } catch (_: Exception) {
                 // 刷新失败保留现有列表
             } finally {

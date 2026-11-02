@@ -1,5 +1,6 @@
 package com.example.litreader.ui.list
 
+import android.content.Context
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -37,6 +38,16 @@ class ThreadAdapter(
     private var displayedProgress: Map<String, Float> = emptyMap()
     private val diffScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var diffJob: Job? = null
+
+    /** 绑定期反复用到的颜色：每个条目多次刷新时不再做资源查找。 */
+    private class Palette(ctx: Context) {
+        val inkPrimary = ContextCompat.getColor(ctx, R.color.inkPrimary)
+        val inkSecondary = ContextCompat.getColor(ctx, R.color.inkSecondary)
+        val ink3 = ContextCompat.getColor(ctx, R.color.ink3)
+        val success = ContextCompat.getColor(ctx, R.color.success)
+    }
+
+    private var palette: Palette? = null
 
     fun submit(list: List<ThreadEntity>) = submit(list, displayedProgress)
 
@@ -96,6 +107,7 @@ class ThreadAdapter(
     override fun onBindViewHolder(h: VH, i: Int) {
         val t = displayed[i]
         val ctx = h.b.root.context
+        val pal = palette ?: Palette(ctx).also { palette = it }
 
         h.b.tvTitle.text = t.title
 
@@ -114,11 +126,18 @@ class ThreadAdapter(
             h.b.tvTag.text = t.tag
         }
 
-        val meta = mutableListOf<String>()
-        if (t.author.isNotEmpty()) meta += t.author
-        if (t.dateText.isNotEmpty()) meta += t.dateText
-        if (t.replies.isNotEmpty()) meta += "${t.replies}回"
-        h.b.tvMeta.text = meta.joinToString(" · ")
+        val meta = buildString {
+            if (t.author.isNotEmpty()) append(t.author)
+            if (t.dateText.isNotEmpty()) {
+                if (isNotEmpty()) append(" · ")
+                append(t.dateText)
+            }
+            if (t.replies.isNotEmpty()) {
+                if (isNotEmpty()) append(" · ")
+                append(t.replies).append("回")
+            }
+        }
+        h.b.tvMeta.text = meta
         h.b.tvMeta.visibility = if (meta.isEmpty()) View.GONE else View.VISIBLE
 
         // 已读/已读完：标题置灰 + 徽标 + 底部 2px 进度细线（已读完走 success 色满条）
@@ -127,8 +146,8 @@ class ThreadAdapter(
             2 -> {
                 h.b.tvReadMark.visibility = View.VISIBLE
                 h.b.tvReadMark.text = ctx.getString(R.string.filter_finished)
-                h.b.tvReadMark.setTextColor(ContextCompat.getColor(ctx, R.color.success))
-                h.b.tvTitle.setTextColor(ContextCompat.getColor(ctx, R.color.ink3))
+                h.b.tvReadMark.setTextColor(pal.success)
+                h.b.tvTitle.setTextColor(pal.ink3)
                 h.b.progressLine.visibility = View.VISIBLE
                 h.b.progressLine.progressDrawable = ContextCompat.getDrawable(ctx, R.drawable.bg_progress_thin_done)
                 h.b.progressLine.progress = 100
@@ -140,8 +159,8 @@ class ThreadAdapter(
                 } else {
                     h.b.tvReadMark.text = ctx.getString(R.string.filter_read)
                 }
-                h.b.tvReadMark.setTextColor(ContextCompat.getColor(ctx, R.color.inkSecondary))
-                h.b.tvTitle.setTextColor(ContextCompat.getColor(ctx, R.color.ink3))
+                h.b.tvReadMark.setTextColor(pal.inkSecondary)
+                h.b.tvTitle.setTextColor(pal.ink3)
                 if (progress != null && progress > 0.005f) {
                     h.b.progressLine.visibility = View.VISIBLE
                     h.b.progressLine.progressDrawable = ContextCompat.getDrawable(ctx, R.drawable.bg_progress_thin)
@@ -152,7 +171,7 @@ class ThreadAdapter(
             }
             else -> {
                 h.b.tvReadMark.visibility = View.GONE
-                h.b.tvTitle.setTextColor(ContextCompat.getColor(ctx, R.color.inkPrimary))
+                h.b.tvTitle.setTextColor(pal.inkPrimary)
                 h.b.progressLine.visibility = View.GONE
             }
         }
@@ -177,8 +196,10 @@ class ThreadAdapter(
             h.b.imgThumb.setImageDrawable(null)
         }
 
-        h.b.root.strokeColor = ContextCompat.getColor(ctx, R.color.divider)
-        h.b.root.scaleX = 1f
-        h.b.root.scaleY = 1f
+        // 复用视图可能停在被按下的缩放态；复位只在实际缩放过时执行
+        if (h.b.root.scaleX != 1f || h.b.root.scaleY != 1f) {
+            h.b.root.scaleX = 1f
+            h.b.root.scaleY = 1f
+        }
     }
 }

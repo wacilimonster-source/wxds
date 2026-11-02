@@ -32,6 +32,8 @@ class FavoritesFragment : Fragment() {
 
     /** 0=收藏先后 1=帖子时间 2=标题（仅收藏段） */
     private var sortMode = 0
+    /** 已读比例表：按次加载复用，避免 observer 与置顶卡各读一遍 prefs。 */
+    private var progressMap: Map<String, Float> = emptyMap()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -48,7 +50,9 @@ class FavoritesFragment : Fragment() {
         )[FavoritesViewModel::class.java]
         adapter = ThreadAdapter({ open(it) }, { onLongPress(it) })
         bind.recycler.layoutManager = LinearLayoutManager(requireContext())
+        bind.recycler.setHasFixedSize(true)
         bind.recycler.adapter = adapter
+        progressMap = ReadProgress.map(requireContext())
 
         val prefs = requireActivity().getSharedPreferences("fav", Context.MODE_PRIVATE)
         sortMode = prefs.getInt("sort", 0)
@@ -77,14 +81,17 @@ class FavoritesFragment : Fragment() {
         renderSectionUi()
         renderFilterChips()
 
-        vm.threads.observe(viewLifecycleOwner) { list ->
+        vm.threads.observe(viewLifecycleOwner) { raw ->
+            // 排序只作用于收藏段；最近段保持按浏览时间倒序
+            val list = if (vm.sectionFavorites) sort(raw) else raw
             // 继续阅读卡与列表同源：取列表首项做置顶卡，并从列表中移除以避免重复。
             // （不要读第二个 LiveData，两个 observer 的触发时序会让去重失效）
             val hero = if (!vm.sectionFavorites && vm.filter == null) list.firstOrNull() else null
             val shown = if (hero != null) list.drop(1) else list
-            adapter.submit(shown, ReadProgress.map(requireActivity()))
+            val progress = progressMap
+            adapter.submit(shown, progress)
             bind.emptyBox.visibility = if (shown.isEmpty() && vm.loading.value != true) View.VISIBLE else View.GONE
-            renderContinueCard(hero)
+            renderContinueCard(hero, progress)
         }
         vm.loading.observe(viewLifecycleOwner) { loading ->
             // 与列表页同款竞态修复：以 VM 数据为准，不读 adapter.itemCount
@@ -102,13 +109,13 @@ class FavoritesFragment : Fragment() {
     }
 
     /** 继续阅读卡：仅最近段 + 全部区显示，内容取最新浏览记录。 */
-    private fun renderContinueCard(hero: ThreadEntity?) {
+    private fun renderContinueCard(hero: ThreadEntity?, progress: Map<String, Float>) {
         val visible = hero != null
         bind.continueCard.visibility = if (visible) View.VISIBLE else View.GONE
         if (!visible || hero == null) return
         bind.tvContinueLabel.text = getString(R.string.continue_last, relativeTime(hero.lastOpenAt))
         bind.tvContinueTitle.text = hero.title
-        val p = (ReadProgress.map(requireActivity())[hero.tid] ?: 0f).coerceIn(0f, 1f)
+        val p = (progress[hero.tid] ?: 0f).coerceIn(0f, 1f)
         bind.continueProgress.progress = (p * 100).toInt()
         bind.tvContinuePercent.text =
             if (p > 0.005f) getString(R.string.item_progress, (p * 100).toInt())
@@ -232,6 +239,7 @@ class FavoritesFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        progressMap = ReadProgress.map(requireActivity())
         if (::vm.isInitialized) vm.load()
     }
 

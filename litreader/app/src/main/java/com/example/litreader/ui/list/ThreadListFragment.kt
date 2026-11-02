@@ -28,6 +28,9 @@ import com.example.litreader.util.ReadProgress
 import com.example.litreader.util.Skeleton
 import com.example.litreader.util.UiTips
 import com.example.litreader.util.UpdateManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /** 文学/贴图共用的列表页，按 sourceId 区分数据源。 */
@@ -39,6 +42,11 @@ class ThreadListFragment : Fragment() {
     private var syncVm: CatalogSyncViewModel? = null
     private var lastObservedRunning: Boolean? = null
     private var isText = false
+    /** 已读比例表：只在进入/返回时刷新，滚动追加页时复用，避免主线程反复读 prefs。 */
+    private var progressMap: Map<String, Float> = emptyMap()
+    /** 标签 chips 只在数据或选中项变化时重建，避免每次筛选都销毁重造一批 TextView。 */
+    private var renderedTags: List<TagCount>? = null
+    private var renderedTag = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,7 +80,9 @@ class ThreadListFragment : Fragment() {
             showThumb = source.style == SourceStyle.IMAGE
         )
         bind.recycler.layoutManager = LinearLayoutManager(requireContext())
+        bind.recycler.setHasFixedSize(true)
         bind.recycler.adapter = adapter
+        progressMap = ReadProgress.map(requireContext())
 
         isText = source.style == SourceStyle.TEXT
         if (isText) {
@@ -121,7 +131,7 @@ class ThreadListFragment : Fragment() {
         })
 
         vm.threads.observe(viewLifecycleOwner) { list ->
-            adapter.submit(list, readProgressMap())
+            adapter.submit(list, progressMap)
             bind.emptyBox.visibility = if (list.isEmpty() && vm.loading.value != true) View.VISIBLE else View.GONE
             bind.swipe.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
             if (list.isEmpty()) {
@@ -216,16 +226,25 @@ class ThreadListFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        // 从阅读器/详情返回时刷新已读标记（图片页全走缓存，瞬间）；首次进入不重复加载
+        // 首次进入由 vm.load(1) 出数据；从阅读器/详情返回时只刷新进度表和变动的那一条，
+        // 不再整页重查（已加载深页时，这一步会拖慢返回动画后的首帧）。
         if (firstResume) {
             firstResume = false
             return
         }
-        if (this::vm.isInitialized) vm.reloadLoadedPages()
+        if (!this::vm.isInitialized) return
+        val appCtx = requireContext().applicationContext
+        viewLifecycleOwner.lifecycleScope.launch {
+            val map = withContext(Dispatchers.IO) { ReadProgress.map(appCtx) }
+            val dirty = withContext(Dispatchers.IO) { ReadProgress.consumeDirty(appCtx, sourceId) }
+            val changedProgress = map != progressMap
+            progressMap = map
+            val cur = vm.threads.value.orEmpty()
+            // 进度变化（读到 N%）也要重新绑定；没变化就不跑 DiffUtil
+            if (changedProgress && cur.isNotEmpty()) adapter.submit(cur, map)
+            if (dirty != null) vm.refreshThread(dirty)
+        }
     }
-
-    /** tid → 已读比例（0<ratio≤1），供列表卡片显示「读到 N%」。 */
-    private fun readProgressMap(): Map<String, Float> = ReadProgress.map(requireActivity())
 
     /** 手动刷新：文学区走目录增量同步（完成后重载已加载页），贴图区回到第 1 页强制重抓。 */
     private fun onManualRefresh() {
@@ -264,18 +283,32 @@ class ThreadListFragment : Fragment() {
 
     /** 标签筛选 chips：全部 + 目录里实际出现的标签（带数量）。 */
     private fun renderTags(counts: List<TagCount>) {
+        if (counts == renderedTags && vm.tag == renderedTag) return
+        renderedTags = counts
+        renderedTag = vm.tag
         bind.tagBar.visibility = if (counts.isEmpty()) View.GONE else View.VISIBLE
         val row = bind.tagRow
         row.removeAllViews()
-        addChip(row, getString(R.string.filter_all), vm.tag.isEmpty()) { if (vm.tag.isNotEmpty()) vm.selectTag("") }
+        addChip(row, getString(R.string.filter_all), vm.tag.isEmpty()) {
+            if (vm.tag.isNotEmpty()) {
+                vm.selectTag("")
+                renderTags(vm.tags.value.orEmpty())
+            }
+        }
         counts.forEach { tc ->
-            addChip(row, "${tc.tag} ${tc.n}", vm.tag == tc.tag) { if (vm.tag != tc.tag) vm.selectTag(tc.tag) }
+            addChip(row, "${tc.tag} ${tc.n}", vm.tag == tc.tag) {
+                if (vm.tag != tc.tag) {
+                    vm.selectTag(tc.tag)
+                    renderTags(vm.tags.value.orEmpty())
+                }
+            }
         }
     }
 
     /** 已读状态筛选：全部 / 未读 / 已读 / 已读完（文学区）。 */
     private fun renderReadChips() {
         bind.readBar.visibility = View.VISIBLE
+        bind.readRow.removeAllViews()
         val options = listOf(
             -1 to getString(R.string.filter_all),
             0 to getString(R.string.filter_unread),
@@ -284,7 +317,10 @@ class ThreadListFragment : Fragment() {
         )
         options.forEach { (value, label) ->
             addChip(bind.readRow, label, vm.readFilter == value) {
-                if (vm.readFilter != value) vm.selectReadFilter(value)
+                if (vm.readFilter != value) {
+                    vm.selectReadFilter(value)
+                    renderReadChips()
+                }
             }
         }
     }
