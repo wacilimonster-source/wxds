@@ -24,9 +24,11 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.updatePadding
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
@@ -155,7 +157,18 @@ class ReaderActivity : AppCompatActivity() {
         sourceId = intent.getStringExtra("sourceId") ?: ""
         bind.tvTitle.text = intent.getStringExtra("title") ?: ""
 
+        // 边到边：系统栏只作覆盖层，窗口不随 insets 变尺寸——呼出/收起菜单
+        // 不再触发整页重排（卡顿根因），也不会暴露窗口白底（半透明白色闪烁根因）
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        // 默认刘海模式下窗口钉在挖孔之下（顶部留黑条），与原隐藏后全屏的表现不一致，放行
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            window.attributes.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            window.attributes = window.attributes
+        }
         window.statusBarColor = Color.parseColor("#141414")
+        // 导航条透明：底板延伸到手势条之下，不再露出主题自带的白色导航条
+        window.navigationBarColor = Color.TRANSPARENT
         // 进出转场：列表卡片位置放大淡入（近似 container-transform），返回时缩回
         if (android.os.Build.VERSION.SDK_INT >= 34) {
             overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_OPEN, R.anim.lr_enter, R.anim.lr_stay)
@@ -439,7 +452,19 @@ class ReaderActivity : AppCompatActivity() {
         bind.pager.visibility = View.GONE
         bind.scrollWrap.visibility = View.GONE
 
-        // 导航栏隐藏/显示会改变内容区高度，必须按新尺寸重新分页，否则页尾多出一片死区
+        // 系统栏由菜单自让位：顶栏垫状态栏、底板垫导航条，正文区尺寸恒定，
+        // 呼出菜单不再触发 onLayoutChange → rebuild 整页重排
+        val menuTopPad = bind.menuTop.paddingTop
+        val menuBottomPad = bind.menuBottom.paddingBottom
+        ViewCompat.setOnApplyWindowInsetsListener(bind.root) { _, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            bind.menuTop.updatePadding(top = menuTopPad + bars.top)
+            bind.menuBottom.updatePadding(bottom = menuBottomPad + bars.bottom)
+            WindowInsetsCompat.CONSUMED
+        }
+
+        // 真实尺寸变化（旋转/分屏/输入法等）仍需重排；系统栏呼出在边到边下只
+        // 改 insets 不改内容区尺寸，不会走到这里
         bind.content.addOnLayoutChangeListener { v, l, t, r, b, ol, ot, orr, ob ->
             if (loaded && v.width > 0 && v.height > 0 &&
                 (r - l != orr - ol || b - t != ob - ot)
@@ -811,6 +836,9 @@ class ReaderActivity : AppCompatActivity() {
         val top = bind.menuTop
         val bottom = bind.menuBottom
         val dur = 200L
+        // 快速连点时新旧动画叠加会互相打架（旧 hide 的收尾把刚 show 的菜单藏掉），先取消旧动画
+        top.animate().cancel()
+        bottom.animate().cancel()
         if (menuShown) {
             top.visibility = View.VISIBLE
             bottom.visibility = View.VISIBLE
@@ -825,15 +853,19 @@ class ReaderActivity : AppCompatActivity() {
         } else {
             top.animate().translationY(-top.height * 0.6f - 1f).alpha(0f).setDuration(dur)
                 .setInterpolator(AccelerateInterpolator())
-                .withEndAction { top.visibility = View.INVISIBLE }.start()
+                .withEndAction { if (!menuShown) top.visibility = View.INVISIBLE }.start()
             bottom.animate().translationY(bottom.height * 0.6f + 1f).alpha(0f).setDuration(dur)
                 .setInterpolator(AccelerateInterpolator())
-                .withEndAction { bottom.visibility = View.INVISIBLE }.start()
+                .withEndAction { if (!menuShown) bottom.visibility = View.INVISIBLE }.start()
         }
     }
 
     private fun immersive(hide: Boolean) {
         val controller = WindowCompat.getInsetsController(window, window.decorView)
+        // 阅读器系统栏常暗（#141414 + 深色菜单）：强制深色外观，
+        // 杜绝浅色模式下系统为保图标对比度叠出的半透明白膜
+        controller.isAppearanceLightStatusBars = false
+        controller.isAppearanceLightNavigationBars = false
         if (hide) {
             controller.systemBarsBehavior =
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
