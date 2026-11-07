@@ -123,7 +123,6 @@
     <string name="reader_finished">已读完</string>
     <string name="reader_dislike_mark">不喜欢</string>
     <string name="reader_disliked">已不喜欢</string>
-    <string name="reader_hint_center">轻点中间打开菜单</string>
     <string name="reader_auto">自动读完 %1$s</string>
     <string name="reader_auto_finished">已标记已读完</string>
 

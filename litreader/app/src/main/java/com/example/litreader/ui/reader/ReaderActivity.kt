@@ -195,14 +195,6 @@ class ReaderActivity : AppCompatActivity() {
                 if (menuShown) toggleMenu() else finish()
             }
         })
-        if (!prefs2.getBoolean("hintShown", false)) {
-            prefs2.edit().putBoolean("hintShown", true).apply()
-            bind.content.postDelayed({
-                if (!isFinishing && !isDestroyed) {
-                    UiTips.snack(bind.root, getString(R.string.reader_hint_center))
-                }
-            }, 600)
-        }
         load()
     }
 
