@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 已读完徽标前缀对勾：10dp，运行时按 success 色 tint -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="10dp"
+    android:height="10dp"
+    android:viewportWidth="10"
+    android:viewportHeight="10">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M3.35,7.85 L0.5,5 L1.55,3.95 L3.35,5.75 L8.45,0.65 L9.5,1.7 Z" />
+</vector>

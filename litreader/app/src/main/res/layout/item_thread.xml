@@ -5,12 +5,12 @@
     android:layout_height="wrap_content"
     android:layout_marginStart="16dp"
     android:layout_marginEnd="16dp"
-    android:layout_marginTop="4dp"
-    android:layout_marginBottom="4dp"
+    android:layout_marginTop="6dp"
+    android:layout_marginBottom="6dp"
     android:clickable="true"
     android:focusable="true"
     app:cardBackgroundColor="@color/bgSurface"
-    app:cardCornerRadius="12dp"
+    app:cardCornerRadius="14dp"
     app:cardElevation="0dp"
     app:strokeWidth="1dp"
     app:strokeColor="@color/divider">
@@ -18,8 +18,8 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:paddingStart="16dp"
         android:paddingEnd="6dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="12dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
@@ -78,13 +78,15 @@
             </LinearLayout>
         </FrameLayout>
 
-        <!-- 文本主体：标题 17sp 最多两行，元信息 12sp -->
+        <!-- 文本主体：标题 17sp 最多两行，元信息 12sp；短标题卡垂直居中 -->
         <LinearLayout
             android:id="@+id/cbody"
             android:orientation="vertical"
             app:layout_constraintStart_toEndOf="@id/thumbWrap"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/actions"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/actionDivider"
+            android:layout_marginEnd="6dp"
             app:layout_constraintHorizontal_bias="0"
             android:layout_width="0dp"
             android:layout_height="wrap_content">
@@ -93,9 +95,12 @@
                 android:id="@+id/tvTitle"
                 android:textSize="17sp"
                 android:textColor="@color/inkPrimary"
+                android:textFontWeight="500"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.012"
                 android:maxLines="2"
                 android:ellipsize="end"
-                android:lineSpacingExtra="2dp"
+                android:lineSpacingExtra="4dp"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
 
@@ -111,8 +116,8 @@
                     android:textSize="12sp"
                     android:textColor="@color/accentDeep"
                     android:background="@drawable/bg_tagpill"
-                    android:paddingStart="9dp"
-                    android:paddingEnd="9dp"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
                     android:paddingTop="2dp"
                     android:paddingBottom="2dp"
                     android:layout_width="wrap_content"
@@ -152,38 +157,72 @@
                     android:id="@+id/tvReadMark"
                     android:textSize="12sp"
                     android:textColor="@color/inkSecondary"
-                    android:background="@drawable/bg_badge"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
-                    android:paddingTop="2dp"
-                    android:paddingBottom="2dp"
+                    android:drawablePadding="5dp"
+                    android:paddingStart="2dp"
+                    android:paddingEnd="2dp"
                     android:layout_marginStart="6dp"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content" />
             </LinearLayout>
+
+            <!-- 底部阅读进度细线（已读部分进度 / 已读完满条） -->
+            <ProgressBar
+                android:id="@+id/progressLine"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:visibility="gone"
+                android:layout_width="match_parent"
+                android:layout_height="2dp"
+                android:layout_marginTop="8dp"
+                android:progressDrawable="@drawable/bg_progress_thin"
+                android:max="100" />
         </LinearLayout>
+
+        <!-- 操作列左缘的纸感竖分隔线（上下各内缩 10dp） -->
+        <View
+            android:id="@+id/actionDivider"
+            android:layout_width="1dp"
+            android:layout_height="0dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="10dp"
+            android:background="@color/divider"
+            app:layout_constraintEnd_toStartOf="@id/actions"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
 
         <!-- 右侧操作列：48dp 收藏按钮（可点、有选中态） + 48dp 更多菜单 -->
         <LinearLayout
             android:id="@+id/actions"
             android:orientation="vertical"
             android:gravity="center"
-            android:layout_marginStart="6dp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content">
 
-            <ImageView
-                android:id="@+id/imgFav"
-                android:src="@drawable/ic_star_outline"
-                app:tint="@color/inkSecondary"
-                android:contentDescription="@string/item_favorite_cd"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:scaleType="center"
+            <FrameLayout
                 android:layout_width="48dp"
-                android:layout_height="48dp" />
+                android:layout_height="48dp">
+
+                <!-- 收藏选中态：32dp accentSoft 圆底（触摸目标仍为 48dp） -->
+                <View
+                    android:id="@+id/favBg"
+                    android:visibility="invisible"
+                    android:background="@drawable/bg_fav_on"
+                    android:layout_gravity="center"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp" />
+
+                <ImageView
+                    android:id="@+id/imgFav"
+                    android:src="@drawable/ic_star_outline"
+                    app:tint="@color/inkSecondary"
+                    android:contentDescription="@string/item_favorite_cd"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:scaleType="center"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp" />
+            </FrameLayout>
 
             <ImageView
                 android:id="@+id/btnDislike"
@@ -195,20 +234,5 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp" />
         </LinearLayout>
-
-        <!-- 底部阅读进度细线（已读部分进度 / 已读完满条） -->
-        <ProgressBar
-            android:id="@+id/progressLine"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:visibility="gone"
-            android:layout_width="0dp"
-            android:layout_height="2dp"
-            android:layout_marginTop="8dp"
-            android:progressDrawable="@drawable/bg_progress_thin"
-            android:max="100"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/actions"
-            app:layout_constraintTop_toBottomOf="@id/cbody"
-            app:layout_constraintBottom_toBottomOf="parent" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 </com.google.android.material.card.MaterialCardView>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 阅读徽标前缀小圆点：4dp，运行时按文字色 tint -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <size android:width="4dp" android:height="4dp" />
+    <solid android:color="#FFFFFFFF" />
+</shape>

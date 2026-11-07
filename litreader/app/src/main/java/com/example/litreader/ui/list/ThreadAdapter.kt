@@ -7,6 +7,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.DrawableCompat
+import androidx.core.widget.TextViewCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.example.litreader.R
@@ -218,6 +220,7 @@ class ThreadAdapter(
                 h.b.tvReadMark.visibility = View.VISIBLE
                 h.b.tvReadMark.text = ctx.getString(R.string.filter_finished)
                 h.b.tvReadMark.setTextColor(pal.success)
+                bindReadMarkIcon(h, pal.success, finished = true)
                 h.b.tvTitle.setTextColor(pal.ink3)
                 h.b.progressLine.visibility = View.VISIBLE
                 h.b.progressLine.progressDrawable = ContextCompat.getDrawable(ctx, R.drawable.bg_progress_thin_done)
@@ -231,6 +234,7 @@ class ThreadAdapter(
                     h.b.tvReadMark.text = ctx.getString(R.string.read_opened)
                 }
                 h.b.tvReadMark.setTextColor(pal.inkSecondary)
+                bindReadMarkIcon(h, pal.inkSecondary, finished = false)
                 h.b.tvTitle.setTextColor(pal.ink3)
                 if (progress != null && progress > 0.005f) {
                     h.b.progressLine.visibility = View.VISIBLE
@@ -242,6 +246,7 @@ class ThreadAdapter(
             }
             else -> {
                 h.b.tvReadMark.visibility = View.GONE
+                h.b.tvReadMark.setCompoundDrawablesRelativeWithIntrinsicBounds(null, null, null, null)
                 h.b.tvTitle.setTextColor(pal.inkPrimary)
                 h.b.progressLine.visibility = View.GONE
             }
@@ -250,6 +255,7 @@ class ThreadAdapter(
         // 收藏/不喜欢按钮：始终可见、可点击；选中态=实心 + 无障碍描述
         h.b.imgFav.setImageResource(if (t.favorite) R.drawable.ic_star_fill else R.drawable.ic_star_outline)
         h.b.imgFav.setColorFilter(if (t.favorite) pal.accent else pal.inkSecondary)
+        h.b.favBg.visibility = if (t.favorite) View.VISIBLE else View.INVISIBLE
         h.b.imgFav.contentDescription = ctx.getString(
             if (t.favorite) R.string.item_unfavorite_cd else R.string.item_favorite_cd
         )
@@ -264,6 +270,14 @@ class ThreadAdapter(
             h.b.root.scaleX = 1f
             h.b.root.scaleY = 1f
         }
+    }
+
+    /** 阅读徽标前缀图标：已读完对勾，已打开/进度小圆点；颜色跟随徽标文字色。 */
+    private fun bindReadMarkIcon(h: VH, color: Int, finished: Boolean) {
+        val ctx = h.b.root.context
+        val icon = ContextCompat.getDrawable(ctx, if (finished) R.drawable.ic_read_check else R.drawable.read_dot)
+            ?.mutate()?.also { DrawableCompat.setTint(it, color) }
+        TextViewCompat.setCompoundDrawablesRelativeWithIntrinsicBounds(h.b.tvReadMark, icon, null, null, null)
     }
 
     /** 贴图 72dp 缩略：无图图标占位，失败显示可见重试；加载策略沿用 ThumbLoader 缓存。 */
@@ -287,6 +301,7 @@ class ThreadAdapter(
             (iv.getTag(R.id.thumbJob) as? Job)?.cancel()
             iv.setImageDrawable(null)
             iv.alpha = 1f
+            placeholder.visibility = View.VISIBLE
             h.b.thumbPlaceholderIcon.visibility = View.VISIBLE
             retry.visibility = View.GONE
             return
@@ -295,9 +310,11 @@ class ThreadAdapter(
         loadThumb(h, t.thumb)
     }
 
+    /** 占位层必须可见：它覆盖在缩略图之上，加载成功后要整层隐藏才能露出图片。 */
     private fun placeholderIconOnly(h: VH) {
         h.b.imgThumb.setImageDrawable(null)
         h.b.imgThumb.alpha = 1f
+        h.b.thumbPlaceholder.visibility = View.VISIBLE
         h.b.thumbPlaceholderIcon.visibility = View.VISIBLE
         h.b.thumbRetry.visibility = View.GONE
     }
@@ -305,14 +322,16 @@ class ThreadAdapter(
     private fun loadThumb(h: VH, url: String) {
         val iv: ImageView = h.b.imgThumb
         iv.alpha = 0f
+        h.b.thumbPlaceholder.visibility = View.VISIBLE
         h.b.thumbPlaceholderIcon.visibility = View.VISIBLE
         h.b.thumbRetry.visibility = View.GONE
         ThumbLoader.load(url, iv) { ok ->
             if (ok) {
-                h.b.thumbPlaceholderIcon.visibility = View.GONE
+                h.b.thumbPlaceholder.visibility = View.GONE
             } else {
                 iv.setImageDrawable(null)
                 iv.alpha = 1f
+                h.b.thumbPlaceholder.visibility = View.VISIBLE
                 h.b.thumbPlaceholderIcon.visibility = View.VISIBLE
                 h.b.thumbRetry.visibility = View.VISIBLE
             }
