@@ -12,6 +12,7 @@ import android.text.StaticLayout
 import android.text.TextPaint
 import android.text.style.BackgroundColorSpan
 import android.view.GestureDetector
+import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
@@ -19,6 +20,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.PopupMenu
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
@@ -73,6 +75,7 @@ class ReaderActivity : AppCompatActivity() {
     private var tid = ""
     private var sourceId = ""
     private var favorite = false
+    private var disliked = false
 
     private var spannable: SpannableStringBuilder? = null
     private var layout: StaticLayout? = null
@@ -185,6 +188,21 @@ class ReaderActivity : AppCompatActivity() {
         applyThemeColors()
         applyKeepAwake()
         immersive(true)
+        // 返回：先收起菜单/关闭弹层，再退出阅读（预测性返回时代用 Dispatcher）
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (searchDialog?.isShowing == true) return  // 对话框自行消费返回键
+                if (menuShown) toggleMenu() else finish()
+            }
+        })
+        if (!prefs2.getBoolean("hintShown", false)) {
+            prefs2.edit().putBoolean("hintShown", true).apply()
+            bind.content.postDelayed({
+                if (!isFinishing && !isDestroyed) {
+                    UiTips.snack(bind.root, getString(R.string.reader_hint_center))
+                }
+            }, 600)
+        }
         load()
     }
 
@@ -205,7 +223,9 @@ class ReaderActivity : AppCompatActivity() {
                     showError(getString(R.string.reader_empty))
                 } else {
                     favorite = repo.isFavorite(tid)
+                    disliked = repo.isDisliked(tid)
                     renderFav()
+                    renderDislikeLabel()
                     buildContent(posts)
                     // 打开即记为已读（不影响已读完标记）
                     repo.markRead(tid)
@@ -487,14 +507,9 @@ class ReaderActivity : AppCompatActivity() {
 
         bind.seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
+                // 拖动中只做预览（页码气泡），不触发跳转；松手一次定位
                 if (!fromUser) return
                 updateSeekBubble(sb, progress)
-                if (flipMode) {
-                    bind.pager.setCurrentItem(progress, false)
-                } else {
-                    val h = max(1, bind.scrollText.height - bind.scrollWrap.height)
-                    bind.scrollWrap.scrollTo(0, (progress / 1000f * h).toInt())
-                }
             }
             override fun onStartTrackingTouch(sb: SeekBar) {
                 bind.seekBubble.visibility = View.VISIBLE
@@ -502,6 +517,12 @@ class ReaderActivity : AppCompatActivity() {
             }
             override fun onStopTrackingTouch(sb: SeekBar) {
                 bind.seekBubble.visibility = View.GONE
+                if (flipMode) {
+                    bind.pager.setCurrentItem(sb.progress, false)
+                } else {
+                    val h = max(1, bind.scrollText.height - bind.scrollWrap.height)
+                    bind.scrollWrap.scrollTo(0, (sb.progress / 1000f * h).toInt())
+                }
                 saveProgress()
             }
         })
@@ -574,24 +595,38 @@ class ReaderActivity : AppCompatActivity() {
 
         bind.btnFontDown.setOnClickListener { setFont(fontSp() - 1) }
         bind.btnFontUp.setOnClickListener { setFont(fontSp() + 1) }
-        bind.btnLine.setOnClickListener {
-            Haptics.tick(bind.root)
-            lineIdx = (lineIdx + 1) % lineSpacings.size
-            bind.btnLine.text = getString(R.string.reader_line, trim(lineSpacing))
-            rebuild()
+        // 行距/边距/字体/主题：显式候选菜单（循环切换改为展示全部选项与当前选中）
+        bind.btnLine.setOnClickListener { anchor ->
+            val labels = lineSpacings.map { trim(it) }
+            showChoiceMenu(anchor, labels, lineIdx) { idx ->
+                lineIdx = idx
+                bind.btnLine.text = getString(R.string.reader_line, trim(lineSpacing))
+                rebuild()
+            }
         }
-        bind.btnTheme.setOnClickListener {
-            setThemeIndex((themeIdx + 1) % themes.size)
+        bind.btnTheme.setOnClickListener { anchor ->
+            val labels = themes.map { it.label }
+            showChoiceMenu(anchor, labels, themeIdx) { idx -> setThemeIndex(idx) }
         }
         bind.itemPaper.setOnClickListener { setThemeIndex(0) }
         bind.itemSuede.setOnClickListener { setThemeIndex(1) }
         bind.itemGreen.setOnClickListener { setThemeIndex(2) }
         bind.itemNight.setOnClickListener { setThemeIndex(3) }
-        bind.btnPad.setOnClickListener {
-            Haptics.tick(bind.root)
-            padIdx = (padIdx + 1) % padPresets.size
-            renderPadLabel()
-            rebuild()
+        bind.btnPad.setOnClickListener { anchor ->
+            val labels = padPresets.map {
+                getString(
+                    when (it) {
+                        padPresets[0] -> R.string.reader_pad_tight
+                        padPresets[1] -> R.string.reader_pad_normal
+                        else -> R.string.reader_pad_loose
+                    }
+                )
+            }
+            showChoiceMenu(anchor, labels, padIdx) { idx ->
+                padIdx = idx
+                renderPadLabel()
+                rebuild()
+            }
         }
         bind.btnFlip.setOnClickListener {
             val cur = currentOffset()
@@ -618,11 +653,15 @@ class ReaderActivity : AppCompatActivity() {
             renderAwakeLabel()
         }
         bind.btnSearch.setOnClickListener { showSearchDialog() }
-        bind.btnFontFamily.setOnClickListener {
-            Haptics.tick(bind.root)
-            serif = !serif
-            renderFontFamilyLabel()
-            rebuild()
+        bind.btnFontFamily.setOnClickListener { anchor ->
+            val labels = listOf(
+                getString(R.string.font_serif), getString(R.string.font_sans)
+            )
+            showChoiceMenu(anchor, labels, if (serif) 0 else 1) { idx ->
+                serif = idx == 0
+                renderFontFamilyLabel()
+                rebuild()
+            }
         }
         bind.menuTabStyle.setOnClickListener { menuTab = 0; renderMenuTab() }
         bind.menuTabMore.setOnClickListener { menuTab = 1; renderMenuTab() }
@@ -640,6 +679,39 @@ class ReaderActivity : AppCompatActivity() {
             lifecycleScope.launch { repo.setFinished(tid, finished) }
             renderFinishedLabel()
         }
+        // 不喜欢开关：标记即从列表隐藏并取消收藏；Undo 恢复标记前的收藏态
+        bind.btnDislike.setOnClickListener {
+            val marking = !disliked
+            val wasFavorite = favorite
+            lifecycleScope.launch {
+                repo.setDislike(tid, marking)
+                disliked = marking
+                if (marking) favorite = false
+                if (marking) Haptics.confirm(bind.root) else Haptics.tick(bind.root)
+                renderDislikeLabel()
+                renderFav()
+                if (marking) {
+                    UiTips.snack(
+                        bind.root, getString(R.string.dislike_marked), getString(R.string.undo),
+                        anchor = if (menuShown) bind.menuBottom else null,
+                        onAction = {
+                            lifecycleScope.launch {
+                                if (wasFavorite) repo.setFavorite(tid, true) else repo.setDislike(tid, false)
+                                disliked = false
+                                favorite = wasFavorite
+                                renderDislikeLabel()
+                                renderFav()
+                            }
+                        }
+                    )
+                } else {
+                    UiTips.snack(
+                        bind.root, getString(R.string.dislike_removed),
+                        anchor = if (menuShown) bind.menuBottom else null
+                    )
+                }
+            }
+        }
 
         renderFav()
         renderThemeDots()
@@ -650,10 +722,12 @@ class ReaderActivity : AppCompatActivity() {
         renderAwakeLabel()
         renderFontFamilyLabel()
         renderFinishedLabel()
+        renderDislikeLabel()
         bind.btnLine.text = getString(R.string.reader_line, trim(lineSpacing))
         bind.btnTheme.text = getString(R.string.reader_theme, theme.label)
         renderPadLabel()
         bind.tvFont.text = "${fontSp()}"
+        renderFontBounds()
     }
 
     private fun setFont(v: Int) {
@@ -662,7 +736,31 @@ class ReaderActivity : AppCompatActivity() {
         Haptics.tick(bind.root)
         fontPrefs.edit().putInt("reader_font", size).apply()
         bind.tvFont.text = "$size"
+        renderFontBounds()
         rebuild()
+    }
+
+    /** 字号边界禁用（12–30sp），禁用态降透明而非仅变色。 */
+    private fun renderFontBounds() {
+        val atMin = fontSp() <= 12
+        val atMax = fontSp() >= 30
+        bind.btnFontDown.isEnabled = !atMin
+        bind.btnFontUp.isEnabled = !atMax
+        bind.btnFontDown.alpha = if (atMin) 0.4f else 1f
+        bind.btnFontUp.alpha = if (atMax) 0.4f else 1f
+    }
+
+    /** 显式候选菜单：完整选项 + 当前选中（✓），替代循环切换。 */
+    private fun showChoiceMenu(anchor: View, labels: List<String>, checked: Int, onPick: (Int) -> Unit) {
+        val popup = PopupMenu(this, anchor, Gravity.END)
+        labels.forEachIndexed { i, label -> popup.menu.add(0, i, i, label).isChecked = i == checked }
+        popup.menu.setGroupCheckable(0, true, true)
+        popup.setOnMenuItemClickListener { item ->
+            Haptics.tick(bind.root)
+            onPick(item.itemId)
+            true
+        }
+        popup.show()
     }
 
     private fun showFloorJump() {
@@ -908,30 +1006,42 @@ class ReaderActivity : AppCompatActivity() {
         bind.btnMarks.text = getString(
             R.string.reader_marks, getString(if (floorMarks) R.string.on else R.string.off)
         )
+        bind.btnMarks.isSelected = floorMarks
     }
 
     private fun renderFinishedLabel() {
         bind.btnFinished.text = getString(
             if (finished) R.string.reader_finished else R.string.reader_finish_mark
         )
+        bind.btnFinished.isSelected = finished
+    }
+
+    private fun renderDislikeLabel() {
+        bind.btnDislike.text = getString(
+            if (disliked) R.string.reader_disliked else R.string.reader_dislike_mark
+        )
+        bind.btnDislike.isSelected = disliked
     }
 
     private fun renderAutoFinishLabel() {
         bind.btnAutoFinish.text = getString(
             R.string.reader_auto, getString(if (autoFinish) R.string.on else R.string.off)
         )
+        bind.btnAutoFinish.isSelected = autoFinish
     }
 
     private fun renderVolumeLabel() {
         bind.btnVolume.text = getString(
             R.string.reader_volume, getString(if (volumeFlip) R.string.on else R.string.off)
         )
+        bind.btnVolume.isSelected = volumeFlip
     }
 
     private fun renderAwakeLabel() {
         bind.btnAwake.text = getString(
             R.string.reader_awake, getString(if (keepAwake) R.string.on else R.string.off)
         )
+        bind.btnAwake.isSelected = keepAwake
     }
 
     private fun renderFontFamilyLabel() {

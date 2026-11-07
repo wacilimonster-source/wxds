@@ -32,7 +32,7 @@
     <color name="galleryOnDark">#EDE5D8</color>
     <color name="gallerySubtle">#A3988A</color>
     <!-- 阅读器菜单底 -->
-    <color name="readerMenuBg">#E6141414</color>
+    <color name="readerMenuBg">#141414</color>
     <!-- 图标底（墨色，图标不随日夜切换） -->
     <color name="ic_launcher_bg">#FAF6EF</color>
 </resources>

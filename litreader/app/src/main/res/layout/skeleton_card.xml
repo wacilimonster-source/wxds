@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 单条骨架卡：与 item_thread 同构（标题/元信息 + 右侧 48dp 操作区占位） -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="horizontal"
+    android:background="@drawable/bg_skeleton_card"
+    android:layout_marginBottom="8dp"
+    android:gravity="center_vertical"
+    android:paddingStart="16dp"
+    android:paddingEnd="10dp"
+    android:paddingTop="14dp"
+    android:paddingBottom="14dp"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_weight="1"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content">
+
+        <View
+            android:background="@drawable/bg_skeleton_line"
+            android:layout_width="240dp"
+            android:layout_height="13dp" />
+
+        <View
+            android:background="@drawable/bg_skeleton_line"
+            android:layout_marginTop="9dp"
+            android:layout_width="150dp"
+            android:layout_height="13dp" />
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="12dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <View
+                android:background="@drawable/bg_skeleton_pill"
+                android:layout_width="46dp"
+                android:layout_height="16dp" />
+
+            <View
+                android:background="@drawable/bg_skeleton_line"
+                android:layout_marginStart="8dp"
+                android:layout_width="96dp"
+                android:layout_height="10dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:orientation="vertical"
+        android:gravity="center"
+        android:layout_marginStart="8dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content">
+
+        <View
+            android:background="@drawable/bg_skeleton_pill"
+            android:layout_width="30dp"
+            android:layout_height="30dp" />
+
+        <View
+            android:background="@drawable/bg_skeleton_pill"
+            android:layout_marginTop="10dp"
+            android:layout_width="30dp"
+            android:layout_height="30dp" />
+    </LinearLayout>
+</LinearLayout>

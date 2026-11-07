@@ -10,7 +10,7 @@ interface ThreadDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(list: List<ThreadEntity>)
 
-    @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND category = :category AND (:tag = '' OR tag = :tag) AND (:readFilter = -1 OR readState = :readFilter) ORDER BY timestamp DESC LIMIT :limit OFFSET :offset")
+    @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND category = :category AND (:tag = '' OR tag = :tag) AND (:readFilter = -1 OR readState = :readFilter) AND dislike = 0 ORDER BY timestamp DESC LIMIT :limit OFFSET :offset")
     suspend fun page(sourceId: String, category: String, tag: String, readFilter: Int, limit: Int, offset: Int): List<ThreadEntity>
 
     @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND category = :category")
@@ -22,11 +22,18 @@ interface ThreadDao {
     @Query("SELECT * FROM threads WHERE favorite = 1 ORDER BY timestamp DESC")
     suspend fun favoritesAll(): List<ThreadEntity>
 
-    /** 最近浏览（收藏的不重复出现），按打开时间倒序，条数由 repo 层上限控制。 */
-    @Query("SELECT * FROM threads WHERE lastOpenAt > 0 AND favorite = 0 ORDER BY lastOpenAt DESC LIMIT :limit")
+    /** 书架「不喜欢」段：按标记时间倒序。 */
+    @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND dislike = 1 ORDER BY dislikeAt DESC")
+    suspend fun disliked(sourceId: String): List<ThreadEntity>
+
+    @Query("SELECT * FROM threads WHERE dislike = 1 ORDER BY dislikeAt DESC")
+    suspend fun dislikedAll(): List<ThreadEntity>
+
+    /** 最近浏览（含已收藏、排除已不喜欢），按打开时间倒序，条数由 repo 层上限控制。 */
+    @Query("SELECT * FROM threads WHERE lastOpenAt > 0 AND dislike = 0 ORDER BY lastOpenAt DESC LIMIT :limit")
     suspend fun recentsAll(limit: Int): List<ThreadEntity>
 
-    @Query("SELECT * FROM threads WHERE lastOpenAt > 0 AND favorite = 0 AND sourceId = :sourceId ORDER BY lastOpenAt DESC LIMIT :limit")
+    @Query("SELECT * FROM threads WHERE lastOpenAt > 0 AND dislike = 0 AND sourceId = :sourceId ORDER BY lastOpenAt DESC LIMIT :limit")
     suspend fun recents(sourceId: String, limit: Int): List<ThreadEntity>
 
     @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND title LIKE :q ORDER BY timestamp DESC")
@@ -44,16 +51,16 @@ interface ThreadDao {
     @Query("SELECT tid FROM threads WHERE favorite = 1 AND tid IN (:tids)")
     suspend fun favoriteTids(tids: List<String>): List<String>
 
-    @Query("SELECT tid, favorite, readState, favoriteAt, lastOpenAt FROM threads WHERE tid IN (:tids)")
+    @Query("SELECT tid, favorite, readState, favoriteAt, lastOpenAt, dislike, dislikeAt FROM threads WHERE tid IN (:tids)")
     suspend fun existingMeta(tids: List<String>): List<TidMeta>
 
-    @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND sitePage = :sitePage ORDER BY timestamp DESC")
+    @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND sitePage = :sitePage AND dislike = 0 ORDER BY timestamp DESC")
     suspend fun bySitePage(sourceId: String, sitePage: Int): List<ThreadEntity>
 
-    @Query("DELETE FROM threads WHERE sourceId = :sourceId AND sitePage = :sitePage AND favorite = 0")
+    @Query("DELETE FROM threads WHERE sourceId = :sourceId AND sitePage = :sitePage AND favorite = 0 AND dislike = 0")
     suspend fun deleteBySitePage(sourceId: String, sitePage: Int)
 
-    @Query("DELETE FROM threads WHERE sourceId = :sourceId AND sitePage = :sitePage AND favorite = 0 AND tid NOT IN (:tids)")
+    @Query("DELETE FROM threads WHERE sourceId = :sourceId AND sitePage = :sitePage AND favorite = 0 AND dislike = 0 AND tid NOT IN (:tids)")
     suspend fun deleteStaleBySitePage(sourceId: String, sitePage: Int, tids: List<String>)
 
     @Query("UPDATE threads SET readState = 1 WHERE tid = :tid AND readState = 0")
@@ -75,6 +82,32 @@ interface ThreadDao {
     @Query("UPDATE threads SET favorite = :fav, favoriteAt = :now WHERE tid = :tid")
     suspend fun setFavorite(tid: String, fav: Boolean, now: Long)
 
+    /** 标记/取消不喜欢：标记时记 dislikeAt，取消时清零（书架排序随标记时间）。 */
+    @Query("UPDATE threads SET dislike = :dislike, dislikeAt = CASE WHEN :dislike THEN :now ELSE 0 END WHERE tid = :tid")
+    suspend fun setDislike(tid: String, dislike: Boolean, now: Long)
+
+    /** 收藏与不喜欢互斥（Room 事务）：收藏即撤不喜欢。 */
+    @androidx.room.Transaction
+    suspend fun setFavoriteExclusive(tid: String, fav: Boolean, now: Long) {
+        setFavorite(tid, fav, now)
+        if (fav) setDislike(tid, false, 0)
+    }
+
+    /** 不喜欢与收藏互斥（Room 事务）：不喜欢即取消收藏。 */
+    @androidx.room.Transaction
+    suspend fun setDislikeExclusive(tid: String, dislike: Boolean, now: Long) {
+        setDislike(tid, dislike, now)
+        if (dislike) setFavorite(tid, false, 0)
+    }
+
+    /** 撤销标记：按快照原值恢复收藏/不喜欢（含各自时间戳）。 */
+    @Query("UPDATE threads SET favorite = :favorite, favoriteAt = :favoriteAt, dislike = :dislike, dislikeAt = :dislikeAt WHERE tid = :tid")
+    suspend fun restoreMark(tid: String, favorite: Boolean, favoriteAt: Long, dislike: Boolean, dislikeAt: Long)
+
+    /** 取消读完：仅从已读完（2）回到已打开（1），不动未读。 */
+    @Query("UPDATE threads SET readState = 1 WHERE tid = :tid AND readState = 2")
+    suspend fun unfinish(tid: String)
+
     @Query("UPDATE threads SET lastOpenAt = :now WHERE tid = :tid")
     suspend fun markOpened(tid: String, now: Long)
 
@@ -86,17 +119,19 @@ interface ThreadDao {
     suspend fun clearRecents()
 
     /** 撤销清空：按快照成对恢复（Room 不支持批量键值对，逐条执行）。 */
+    @androidx.room.Transaction
     suspend fun restoreLastOpenAt(snapshot: List<Pair<String, Long>>) {
         snapshot.forEach { (tid, ts) -> restoreOne(tid, ts) }
     }
 
-    @Query("UPDATE threads SET lastOpenAt = :ts WHERE tid = :tid")
+    /** 恢复保留较新值：清空后重新打开过的记录（lastOpenAt 更大）不被旧快照覆盖。 */
+    @Query("UPDATE threads SET lastOpenAt = MAX(lastOpenAt, :ts) WHERE tid = :tid")
     suspend fun restoreOne(tid: String, ts: Long)
 
     @Query("SELECT favorite FROM threads WHERE tid = :tid")
     suspend fun isFavorite(tid: String): Boolean?
 
-    @Query("SELECT COUNT(*) FROM threads WHERE sourceId = :sourceId AND category = :category AND (:tag = '' OR tag = :tag) AND (:readFilter = -1 OR readState = :readFilter)")
+    @Query("SELECT COUNT(*) FROM threads WHERE sourceId = :sourceId AND category = :category AND (:tag = '' OR tag = :tag) AND (:readFilter = -1 OR readState = :readFilter) AND dislike = 0")
     suspend fun countByCategory(sourceId: String, category: String, tag: String, readFilter: Int): Int
 
     @Query("SELECT COUNT(*) FROM threads WHERE sourceId = :sourceId")
@@ -106,8 +141,8 @@ interface ThreadDao {
 /** 标签聚合结果（Room POJO）。 */
 data class TagCount(val tag: String, val n: Int)
 
-/** 帖子标记回读（upsert 前保留收藏/已读/浏览时间，Room POJO）。 */
-data class TidMeta(val tid: String, val favorite: Boolean, val readState: Int, val favoriteAt: Long, val lastOpenAt: Long)
+/** 帖子标记回读（upsert 前保留收藏/已读/浏览时间/不喜欢，Room POJO）。 */
+data class TidMeta(val tid: String, val favorite: Boolean, val readState: Int, val favoriteAt: Long, val lastOpenAt: Long, val dislike: Boolean, val dislikeAt: Long)
 
 @Dao
 interface ThreadContentDao {

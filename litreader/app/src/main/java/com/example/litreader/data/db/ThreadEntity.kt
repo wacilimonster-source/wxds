@@ -34,6 +34,10 @@ data class ThreadEntity(
     val favorite: Boolean = false,
     /** 收藏时间（收藏先后排序用；旧数据为 0 排在末尾） */
     val favoriteAt: Long = 0,
+    /** 已标记不喜欢（与收藏互斥；文学/贴图列表隐藏，书架「不喜欢」段管理） */
+    val dislike: Boolean = false,
+    /** 标记不喜欢的时间（书架「不喜欢」段排序用） */
+    val dislikeAt: Long = 0,
     /** 最近一次打开时间（书架「最近浏览」用；0=未浏览过） */
     val lastOpenAt: Long = 0
 )

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="horizontal"
+    android:gravity="center"
+    android:paddingTop="10dp"
+    android:paddingBottom="14dp"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <ProgressBar
+        android:id="@+id/footerProgress"
+        style="?android:attr/progressBarStyleSmall"
+        android:layout_width="16dp"
+        android:layout_height="16dp" />
+
+    <TextView
+        android:id="@+id/tvFooterText"
+        android:textSize="12sp"
+        android:textColor="@color/inkSecondary"
+        android:layout_marginStart="8dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+
+    <TextView
+        android:id="@+id/tvFooterRetry"
+        android:text="@string/footer_retry"
+        android:textSize="12sp"
+        android:textColor="@color/danger"
+        android:background="?attr/selectableItemBackground"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:minHeight="48dp"
+        android:gravity="center"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+</LinearLayout>

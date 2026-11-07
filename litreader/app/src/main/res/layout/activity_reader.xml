@@ -412,7 +412,7 @@
                         android:id="@+id/flowMore1"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        app:constraint_referenced_ids="btnFlip,btnMarks,btnFinished,btnFloorJump"
+                        app:constraint_referenced_ids="btnFlip,btnMarks,btnFinished,btnDislike,btnFloorJump"
                         app:flow_horizontalAlign="start"
                         app:flow_horizontalGap="8dp"
                         app:flow_verticalAlign="center"
@@ -430,6 +430,9 @@
                         style="@style/ReaderMenuItem" />
                     <TextView
                         android:id="@+id/btnFinished"
+                        style="@style/ReaderMenuItem" />
+                    <TextView
+                        android:id="@+id/btnDislike"
                         style="@style/ReaderMenuItem" />
                     <TextView
                         android:id="@+id/btnFloorJump"

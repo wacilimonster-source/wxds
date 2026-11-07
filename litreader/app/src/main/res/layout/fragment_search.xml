@@ -44,13 +44,25 @@
 
         <ImageButton
             android:id="@+id/btnClear"
-            android:contentDescription="清除"
+            android:contentDescription="@string/search_clear_cd"
             android:src="@drawable/ic_close"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             app:tint="@color/ink3" />
     </LinearLayout>
+
+    <!-- 范围说明/结果数：明示搜索只覆盖本地已缓存标题 -->
+    <TextView
+        android:id="@+id/tvSearchScope"
+        android:visibility="gone"
+        android:textSize="12sp"
+        android:textColor="@color/inkSecondary"
+        android:paddingStart="20dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="4dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
 
     <!-- 搜索历史（输入框为空且有过搜索时显示）：点击即搜，长按删除 -->
     <HorizontalScrollView
@@ -148,6 +160,20 @@
                 android:gravity="center"
                 android:paddingStart="32dp"
                 android:paddingEnd="32dp" />
+            <TextView
+                android:id="@+id/btnSearchRetry"
+                android:text="@string/empty_action_refresh"
+                android:textSize="13sp"
+                android:textColor="@color/onPrimary"
+                android:background="@drawable/bg_btn_accent"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                android:visibility="gone"
+                android:layout_marginTop="12dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
         </LinearLayout>
 
         <!-- 首屏加载骨架（呼吸动画） -->

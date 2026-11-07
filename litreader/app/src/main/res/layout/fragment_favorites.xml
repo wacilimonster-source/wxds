@@ -79,6 +79,14 @@
             android:layout_marginStart="2dp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSectionDislike"
+            style="@style/SegmentButton"
+            android:text="@string/section_dislike"
+            android:layout_marginStart="2dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
     </com.google.android.material.button.MaterialButtonToggleGroup>
 
     <!-- 区筛选 chips -->

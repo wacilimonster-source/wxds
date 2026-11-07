@@ -21,7 +21,7 @@ import java.lang.ref.WeakReference
  */
 object ThumbLoader {
 
-    private const val TARGET = 120  // 56dp@xxhdpi 足够
+    private const val TARGET = 216  // 72dp@xxhdpi
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -31,13 +31,15 @@ object ThumbLoader {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
 
-    fun load(url: String, view: ImageView) {
+    /** onResult 在主线程回调 true=成功 false=失败（视图已被复用时不回调）。 */
+    fun load(url: String, view: ImageView, onResult: ((Boolean) -> Unit)? = null) {
         view.tag = url
         val cached = cache.get(url)
         if (cached != null) {
             (view.getTag(R.id.thumbJob) as? Job)?.cancel()
             view.alpha = 1f
             view.setImageBitmap(cached)
+            onResult?.invoke(true)
             return
         }
         view.setImageDrawable(null)
@@ -55,6 +57,7 @@ object ThumbLoader {
                 iv.setImageBitmap(bmp)
                 iv.animate().alpha(1f).setDuration(200).start()
                 iv.setTag(R.id.thumbJob, null)
+                onResult?.invoke(bmp != null)
             }
         }
         view.setTag(R.id.thumbJob, job)

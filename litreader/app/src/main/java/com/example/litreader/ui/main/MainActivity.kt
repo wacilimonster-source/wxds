@@ -65,11 +65,12 @@ class MainActivity : AppCompatActivity() {
         tx.commit()
     }
 
-    /** 列表页放大镜入口：切到搜索页签；focus=true 时聚焦输入框并弹键盘。 */
-    fun openSearch(focus: Boolean) {
+    /** 列表页放大镜入口：切到搜索页签并附带当前来源；focus=true 时聚焦输入框并弹键盘。 */
+    fun openSearch(sourceId: String, focus: Boolean) {
         switchTab(R.id.tab_search)
-        if (focus) {
-            (supportFragmentManager.findFragmentByTag(TAG_SEARCH) as? SearchFragment)?.focusInput()
+        (supportFragmentManager.findFragmentByTag(TAG_SEARCH) as? SearchFragment)?.apply {
+            presetSource(sourceId)
+            if (focus) focusInput()
         }
     }
 

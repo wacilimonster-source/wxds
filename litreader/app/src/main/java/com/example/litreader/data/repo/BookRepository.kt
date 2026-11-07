@@ -49,7 +49,9 @@ class BookRepository(
                 favorite = m?.favorite ?: false,
                 readState = m?.readState ?: 0,
                 favoriteAt = m?.favoriteAt ?: 0,
-                lastOpenAt = m?.lastOpenAt ?: 0
+                lastOpenAt = m?.lastOpenAt ?: 0,
+                dislike = m?.dislike ?: false,
+                dislikeAt = m?.dislikeAt ?: 0
             )
         }
         db.threadDao().upsertAll(ents)
@@ -224,10 +226,15 @@ class BookRepository(
         if (filter == null) db.threadDao().favoritesAll()
         else db.threadDao().favorites(filter)
 
-    /** 最近浏览（收藏的不重复出现）；filter 为 null 时跨区。 */
-    suspend fun recents(filter: String?): List<ThreadEntity> =
-        if (filter == null) db.threadDao().recentsAll(RECENT_KEEP)
-        else db.threadDao().recents(filter, RECENT_KEEP)
+    /** 书架「不喜欢」段；filter 为 null 时跨区。 */
+    suspend fun disliked(filter: String?): List<ThreadEntity> =
+        if (filter == null) db.threadDao().dislikedAll()
+        else db.threadDao().disliked(filter)
+
+    /** 最近浏览（含已收藏、排除已不喜欢）；filter 为 null 时跨区。 */
+    suspend fun recents(filter: String?, limit: Int = RECENT_KEEP): List<ThreadEntity> =
+        if (filter == null) db.threadDao().recentsAll(limit)
+        else db.threadDao().recents(filter, limit)
 
     /** 打开帖子即记浏览时间，并把超出上限的旧记录挤出「最近」。 */
     suspend fun markOpened(tid: String) {
@@ -255,9 +262,9 @@ class BookRepository(
     /** 打开过即记为已读（不改已读完标记）。 */
     suspend fun markRead(tid: String) = db.threadDao().markRead(tid)
 
-    /** 已读完 / 取消已读完（取消后回到已读）。 */
+    /** 已读完 / 取消已读完（取消后回到已打开，不动未读）。 */
     suspend fun setFinished(tid: String, finished: Boolean) {
-        if (finished) db.threadDao().markFinished(tid) else db.threadDao().markRead(tid)
+        if (finished) db.threadDao().markFinished(tid) else db.threadDao().unfinish(tid)
     }
 
     suspend fun readState(tid: String): Int = db.threadDao().byId(tid)?.readState ?: 0
@@ -271,7 +278,23 @@ class BookRepository(
         else db.threadDao().search(filter, "%$q%")
 
     suspend fun setFavorite(tid: String, fav: Boolean) =
-        db.threadDao().setFavorite(tid, fav, System.currentTimeMillis())
+        db.threadDao().setFavoriteExclusive(tid, fav, System.currentTimeMillis())
+
+    /** 标记/取消不喜欢（Room 事务内与收藏互斥：标记即取消收藏）。 */
+    suspend fun setDislike(tid: String, dislike: Boolean) =
+        db.threadDao().setDislikeExclusive(tid, dislike, System.currentTimeMillis())
+
+    suspend fun isDisliked(tid: String): Boolean = db.threadDao().byId(tid)?.dislike ?: false
+
+    /** 撤销用快照：读当前收藏/不喜欢原值。 */
+    suspend fun markSnapshot(tid: String): MarkSnapshot? =
+        db.threadDao().byId(tid)?.let {
+            MarkSnapshot(it.tid, it.favorite, it.favoriteAt, it.dislike, it.dislikeAt)
+        }
+
+    /** 按快照恢复收藏/不喜欢原值（撤销）。 */
+    suspend fun restoreMark(snap: MarkSnapshot) =
+        db.threadDao().restoreMark(snap.tid, snap.favorite, snap.favoriteAt, snap.dislike, snap.dislikeAt)
 
     suspend fun isFavorite(tid: String): Boolean = db.threadDao().isFavorite(tid) ?: false
 

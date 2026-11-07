@@ -81,8 +81,18 @@ class GalleryActivity : AppCompatActivity() {
 
     private fun currentUrl(): String = urls[bind.pager.currentItem]
 
+    private fun setActionsEnabled(enabled: Boolean) {
+        bind.btnSave.isEnabled = enabled
+        bind.btnShare.isEnabled = enabled
+        bind.btnSave.alpha = if (enabled) 1f else 0.45f
+        bind.btnShare.alpha = if (enabled) 1f else 0.45f
+    }
+
+    /** 保存：进行中禁用按钮（重复点击合并），URL 绑定点击时刻的图片；失败可重试。 */
     private fun saveCurrent() {
         val url = currentUrl()
+        val index = bind.pager.currentItem
+        setActionsEnabled(false)
         lifecycleScope.launch {
             try {
                 bind.progress.visibility = View.VISIBLE
@@ -91,17 +101,21 @@ class GalleryActivity : AppCompatActivity() {
                     MediaSaver.saveToGallery(applicationContext, bytes, url)
                 }
                 if (ok) Haptics.key(bind.root)
-                snack(getString(if (ok) R.string.save_done else R.string.save_failed))
+                snack(doneText(index, ok))
             } catch (e: Exception) {
-                toast(getString(R.string.save_failed))
+                snackWithRetry(getString(R.string.save_failed)) { saveCurrent() }
             } finally {
                 bind.progress.visibility = View.GONE
+                setActionsEnabled(true)
             }
         }
     }
 
+    /** 分享：与保存同款防重与 URL 绑定；失败可重试。 */
     private fun shareCurrent() {
         val url = currentUrl()
+        val index = bind.pager.currentItem
+        setActionsEnabled(false)
         lifecycleScope.launch {
             try {
                 bind.progress.visibility = View.VISIBLE
@@ -116,11 +130,23 @@ class GalleryActivity : AppCompatActivity() {
                 }
                 startActivity(Intent.createChooser(share, getString(R.string.share_image)))
             } catch (e: Exception) {
-                toast(getString(R.string.share_failed))
+                snackWithRetry(getString(R.string.share_failed)) { shareCurrent() }
             } finally {
                 bind.progress.visibility = View.GONE
+                setActionsEnabled(true)
             }
         }
+    }
+
+    /** 完成提示绑定原图：保存中切图时，提示仍指向操作发起的那张。 */
+    private fun doneText(index: Int, ok: Boolean): String =
+        if (!ok) getString(R.string.save_failed)
+        else if (bind.pager.currentItem == index) getString(R.string.save_done)
+        else getString(R.string.save_done_index, index + 1)
+
+    private fun snackWithRetry(msg: String, retry: () -> Unit) {
+        UiTips.snack(bind.root, msg, getString(R.string.undo), onAction = retry,
+            anchor = if (barsVisible) bind.bottomBar else null, long = true)
     }
 
     private fun toggleBars() {

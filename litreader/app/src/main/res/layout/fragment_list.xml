@@ -6,17 +6,15 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- 展开态大标题：随列表滚动收起（高度动画，由 Fragment 驱动） -->
+    <!-- 固定顶栏：56dp 起，页面标题 + 搜索 + 更多（刷新收进更多） -->
     <LinearLayout
         android:id="@+id/titleRow"
-        android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingStart="20dp"
-        android:paddingEnd="12dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="6dp"
+        android:paddingEnd="8dp"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:minHeight="56dp">
 
         <TextView
             android:id="@+id/tvTitle"
@@ -24,27 +22,18 @@
             android:layout_weight="1"
             android:layout_height="wrap_content"
             android:textColor="@color/inkPrimary"
-            android:textSize="22sp"
+            android:textSize="24sp"
             android:fontFamily="serif"
             android:textStyle="bold"
             android:maxLines="1"
             android:ellipsize="end" />
 
         <ImageButton
-            android:id="@+id/btnRefresh"
-            android:contentDescription="@string/refresh"
-            android:src="@drawable/ic_refresh"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            app:tint="@color/inkSecondary" />
-
-        <ImageButton
             android:id="@+id/btnSearch"
             android:contentDescription="@string/search"
             android:src="@drawable/ic_search"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             app:tint="@color/inkSecondary" />
 
@@ -52,100 +41,49 @@
             android:id="@+id/btnMore"
             android:contentDescription="@string/more"
             android:src="@drawable/ic_more"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             app:tint="@color/inkSecondary" />
     </LinearLayout>
 
-    <!-- 收起态小标题：大标题收起后淡入 -->
+    <!-- 标签横向滚动 + 筛选入口（阅读状态收进筛选面板，显式应用） -->
     <LinearLayout
-        android:id="@+id/titleCompact"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingStart="20dp"
-        android:paddingEnd="12dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="2dp"
-        android:visibility="gone"
+        android:paddingEnd="8dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
+
+        <HorizontalScrollView
+            android:id="@+id/tagBar"
+            android:scrollbars="none"
+            android:layout_weight="1"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content">
+            <LinearLayout
+                android:id="@+id/tagRow"
+                android:orientation="horizontal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </HorizontalScrollView>
 
         <TextView
-            android:id="@+id/tvTitleSmall"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="wrap_content"
-            android:textColor="@color/inkPrimary"
-            android:textSize="17sp"
-            android:fontFamily="serif"
-            android:textStyle="bold"
-            android:maxLines="1"
-            android:ellipsize="end" />
-
-        <ImageButton
-            android:id="@+id/btnRefresh2"
-            android:contentDescription="@string/refresh"
-            android:src="@drawable/ic_refresh"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            app:tint="@color/inkSecondary" />
-
-        <ImageButton
-            android:id="@+id/btnSearch2"
-            android:contentDescription="@string/search"
-            android:src="@drawable/ic_search"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            app:tint="@color/inkSecondary" />
-
-        <ImageButton
-            android:id="@+id/btnMore2"
-            android:contentDescription="@string/more"
-            android:src="@drawable/ic_more"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            app:tint="@color/inkSecondary" />
+            android:id="@+id/btnFilter"
+            android:text="@string/filter_sheet"
+            android:textSize="13sp"
+            android:textColor="@color/accent"
+            android:background="?attr/selectableItemBackground"
+            android:paddingStart="12dp"
+            android:paddingEnd="6dp"
+            android:minHeight="48dp"
+            android:gravity="center"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
     </LinearLayout>
 
-    <!-- 已读状态筛选条（仅文学区使用） -->
-    <HorizontalScrollView
-        android:id="@+id/readBar"
-        android:scrollbars="none"
-        android:visibility="gone"
-        android:paddingStart="20dp"
-        android:paddingEnd="12dp"
-        android:paddingBottom="4dp"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-        <LinearLayout
-            android:id="@+id/readRow"
-            android:orientation="horizontal"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
-    </HorizontalScrollView>
-
-    <!-- 标签筛选条（按目录聚合动态生成） -->
-    <HorizontalScrollView
-        android:id="@+id/tagBar"
-        android:scrollbars="none"
-        android:visibility="gone"
-        android:paddingStart="20dp"
-        android:paddingEnd="12dp"
-        android:paddingBottom="4dp"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-        <LinearLayout
-            android:id="@+id/tagRow"
-            android:orientation="horizontal"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
-    </HorizontalScrollView>
-
-    <!-- 目录同步进度（仅文学区使用） -->
+    <!-- 目录同步进度（仅文学区使用）：缓存可先浏览，同步失败提示保留缓存 -->
     <TextView
         android:id="@+id/tvSyncStatus"
         android:visibility="gone"
@@ -207,6 +145,20 @@
                 android:gravity="center"
                 android:paddingStart="32dp"
                 android:paddingEnd="32dp" />
+            <!-- 清除筛选：仅筛选零结果时显示（重置标签+阅读状态并回第一页） -->
+            <TextView
+                android:id="@+id/btnEmptyClear"
+                android:text="@string/filter_clear"
+                android:textSize="13sp"
+                android:textColor="@color/accent"
+                android:background="?attr/selectableItemBackground"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                android:visibility="gone"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
             <TextView
                 android:id="@+id/btnEmptyAction"
                 android:text="@string/empty_action_refresh"
@@ -217,7 +169,7 @@
                 android:paddingEnd="20dp"
                 android:paddingTop="8dp"
                 android:paddingBottom="8dp"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="12dp"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content" />
         </LinearLayout>
@@ -229,7 +181,7 @@
             android:visibility="gone" />
     </FrameLayout>
 
-    <!-- 分页栏：页码点击弹出跳页 BottomSheet；前进靠列表无限滚动 -->
+    <!-- 分页栏：页码=最后成功加载的页，点击弹出跳页 BottomSheet；前进靠列表无限滚动 -->
     <TextView
         android:id="@+id/tvPage"
         android:gravity="center"

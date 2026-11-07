@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [ThreadEntity::class, ThreadContentEntity::class], version = 9)
+@Database(entities = [ThreadEntity::class, ThreadContentEntity::class], version = 10)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun threadDao(): ThreadDao
     abstract fun threadContentDao(): ThreadContentDao
@@ -22,6 +22,7 @@ abstract class AppDatabase : RoomDatabase() {
          * v6→v7：增加 lastOpenAt 列（书架「最近浏览」排序，0=未浏览过）。
          * v7→v8：threads 表补索引（列表分页/收藏/最近浏览/贴图按页缓存此前全表扫描）。
          * v8→v9：threads 增加 thumb 列（列表行内懒加载首图，贴图区缩略卡）。
+         * v9→v10：threads 增加 dislike/dislikeAt 列（标记不喜欢：列表隐藏，书架「不喜欢」段管理）。
          */
         private val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -69,9 +70,16 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE threads ADD COLUMN dislike INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE threads ADD COLUMN dislikeAt INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun build(ctx: Context) = Room.databaseBuilder(ctx, AppDatabase::class.java, "lit.db")
             .addMigrations(
-                MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9
+                MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10
             )
             .fallbackToDestructiveMigration()
             .build()

@@ -1,6 +1,7 @@
 package com.example.litreader.ui.list
 
 import android.content.Context
+import android.graphics.Canvas
 import android.graphics.Typeface
 import android.os.Bundle
 import android.view.Gravity
@@ -15,11 +16,13 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.litreader.App
 import com.example.litreader.R
 import com.example.litreader.data.db.TagCount
 import com.example.litreader.data.db.ThreadEntity
+import com.example.litreader.data.repo.MarkSnapshot
 import com.example.litreader.data.source.SourceRegistry
 import com.example.litreader.data.source.SourceStyle
 import com.example.litreader.databinding.FragmentListBinding
@@ -33,7 +36,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/** 文学/贴图共用的列表页，按 sourceId 区分数据源。 */
+/** 文学/贴图共用的列表页，按 sourceId 区分数据源。固定顶栏，阅读状态收进筛选面板。 */
 class ThreadListFragment : Fragment() {
     private lateinit var bind: FragmentListBinding
     private lateinit var vm: ThreadListViewModel
@@ -65,7 +68,6 @@ class ThreadListFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val source = SourceRegistry.get(sourceId) ?: SourceRegistry.first()
         bind.tvTitle.text = source.name
-        bind.tvTitleSmall.text = source.name
 
         vm = ViewModelProvider(
             this,
@@ -77,11 +79,16 @@ class ThreadListFragment : Fragment() {
         )[ThreadListViewModel::class.java]
         adapter = ThreadAdapter(
             { open(it) }, { onLongPress(it) },
-            showThumb = source.style == SourceStyle.IMAGE
+            onFavorite = { onFavoriteToggle(it) },
+            onDislike = { onDislikeToggle(it) },
+            showThumb = source.style == SourceStyle.IMAGE,
+            withFooter = true,
+            onRetry = { vm.retryAppend() }
         )
         bind.recycler.layoutManager = LinearLayoutManager(requireContext())
         bind.recycler.setHasFixedSize(true)
         bind.recycler.adapter = adapter
+        setupSwipe()
         progressMap = ReadProgress.map(requireContext())
 
         isText = source.style == SourceStyle.TEXT
@@ -96,29 +103,25 @@ class ThreadListFragment : Fragment() {
                 )
             )[CatalogSyncViewModel::class.java]
             syncVm?.state?.observe(viewLifecycleOwner, ::renderSync)
-            renderReadChips()
         } else {
             bind.tvSyncStatus.visibility = View.GONE
-            bind.readBar.visibility = View.GONE
         }
-
-        setupTitleCollapse()
+        renderFilterButton()
 
         bind.swipe.setColorSchemeColors(ContextCompat.getColor(requireContext(), R.color.accent))
         bind.swipe.setOnRefreshListener { onManualRefresh() }
-        bind.btnRefresh.setOnClickListener { onManualRefresh() }
-        bind.btnRefresh2.setOnClickListener { onManualRefresh() }
         bind.tvPage.setOnClickListener { showJumpSheet() }
         bind.tvPage.contentDescription = getString(R.string.jump_page)
         bind.btnSearch.setOnClickListener {
-            (requireActivity() as? com.example.litreader.ui.main.MainActivity)?.openSearch(focus = true)
-        }
-        bind.btnSearch2.setOnClickListener {
-            (requireActivity() as? com.example.litreader.ui.main.MainActivity)?.openSearch(focus = true)
+            (requireActivity() as? com.example.litreader.ui.main.MainActivity)?.openSearch(source.id, focus = true)
         }
         bind.btnMore.setOnClickListener { showMoreMenu(bind.btnMore) }
-        bind.btnMore2.setOnClickListener { showMoreMenu(bind.btnMore2) }
-        bind.btnEmptyAction.setOnClickListener { onManualRefresh() }
+        bind.btnFilter.setOnClickListener {
+            FilterSheet.newInstance(vm.readFilter) { applied ->
+                vm.applyReadFilter(applied)
+                renderFilterButton()
+            }.show(parentFragmentManager, "filter")
+        }
 
         // 无限滚动：距底部 6 项时自动追加下一页
         bind.recycler.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
@@ -132,36 +135,39 @@ class ThreadListFragment : Fragment() {
 
         vm.threads.observe(viewLifecycleOwner) { list ->
             adapter.submit(list, progressMap)
-            bind.emptyBox.visibility = if (list.isEmpty() && vm.loading.value != true) View.VISIBLE else View.GONE
-            bind.swipe.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
-            if (list.isEmpty()) {
-                bind.tvEmptyTitle.setText(
-                    if (isText) R.string.empty_title else R.string.empty_gallery_title
-                )
-                bind.tvEmptyHint.setText(
-                    if (isText) R.string.empty_hint else R.string.empty_gallery_hint
-                )
-            }
+            renderEmpty()
             renderPageLabel()
+            updateFooter()
         }
         vm.tags.observe(viewLifecycleOwner) { renderTags(it) }
-        vm.loading.observe(viewLifecycleOwner) { loading ->
-            // 空态判定用 VM 的数据源而非 adapter.itemCount：DiffUtil 在后台算，
-            // loading=false 时 itemCount 往往还没更新（缓存页毫秒级返回时必现竞态）
-            val empty = vm.threads.value.isNullOrEmpty()
-            if (!loading) {
-                bind.swipe.isRefreshing = false
-                Skeleton.hide(bind.skeleton.root)
-                bind.emptyBox.visibility = if (empty) View.VISIBLE else View.GONE
-                bind.swipe.visibility = if (empty) View.GONE else View.VISIBLE
-            } else if (empty) {
+        vm.firstLoading.observe(viewLifecycleOwner) { first ->
+            if (first) {
                 Skeleton.show(bind.skeleton.root)
                 bind.emptyBox.visibility = View.GONE
+            } else {
+                Skeleton.hide(bind.skeleton.root)
+                renderEmpty()
             }
-            renderPageLabel()
         }
+        vm.loading.observe(viewLifecycleOwner) { loading ->
+            if (!loading) bind.swipe.isRefreshing = false
+            renderEmpty()
+            renderPageLabel()
+            updateFooter()
+        }
+        vm.appending.observe(viewLifecycleOwner) { updateFooter() }
+        vm.appendError.observe(viewLifecycleOwner) { updateFooter() }
         vm.error.observe(viewLifecycleOwner) { msg ->
-            if (msg != null) UiTips.snack(bind.root, msg, anchor = bind.tvPage)
+            if (msg != null) {
+                UiTips.snack(bind.root, msg, anchor = bind.tvPage)
+                vm.error  // 值保留到下一次；此处只展示
+            }
+        }
+        vm.opFailure.observe(viewLifecycleOwner) { failed ->
+            if (failed) {
+                UiTips.snack(bind.root, getString(R.string.op_failed), anchor = bind.tvPage)
+                vm.consumeOpFailure()
+            }
         }
         vm.archivedNotice.observe(viewLifecycleOwner) { valid ->
             if (valid > 0) {
@@ -173,53 +179,68 @@ class ThreadListFragment : Fragment() {
         vm.load(1)
     }
 
-    /** 大标题 ↔ 收起态小标题：列表滚过阈值收起（高度动画），回到顶部展开。 */
-    private fun setupTitleCollapse() {
-        bind.titleCompact.alpha = 0f
-        bind.titleCompact.visibility = View.GONE
-        bind.recycler.addOnScrollListener(collapseScroller)
-    }
-
-    private val collapseScroller = object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
-        override fun onScrolled(rv: androidx.recyclerview.widget.RecyclerView, dx: Int, dy: Int) {
-            // 迟滞：收起行高度变化会反过来改变 RV 滚动读数，双阈值防震荡
-            val target = if (titleCollapsed) rv.computeVerticalScrollOffset() > dp(60)
-                         else rv.computeVerticalScrollOffset() > dp(130)
-            setCollapsed(target)
+    /** 尾部状态：失败重试 > 加载中 > 到底 > 无。 */
+    private fun updateFooter() {
+        val state = when {
+            vm.appendError.value == true -> ThreadAdapter.FooterState.RETRY
+            vm.appending.value == true -> ThreadAdapter.FooterState.LOADING
+            vm.noMore && !vm.threads.value.isNullOrEmpty() -> ThreadAdapter.FooterState.END
+            else -> ThreadAdapter.FooterState.NONE
         }
+        adapter.setFooter(state)
     }
 
-    private var titleCollapsed = false
-
-    private fun setCollapsed(collapse: Boolean) {
-        if (titleCollapsed == collapse) return
-        titleCollapsed = collapse
-        val row = bind.titleRow
-        if (row.height <= 0 && !collapse) return
-        if (row.tag !is Int) row.tag = row.height
-        val full = row.tag as Int
-        val compact = bind.titleCompact
-        row.animate().cancel()
-        val from = if (row.layoutParams.height < 0) full else row.layoutParams.height
-        val to = if (collapse) 0 else full
-        android.animation.ValueAnimator.ofInt(from, to).apply {
-            duration = 200
-            interpolator = android.view.animation.DecelerateInterpolator()
-            addUpdateListener {
-                row.layoutParams.height = it.animatedValue as Int
-                row.requestLayout()
+    /** 空态分型：筛选零结果（可清除）/ 无目录（可同步）/ 网络失败（可重试）/ 常规空。 */
+    private fun renderEmpty() {
+        val empty = vm.threads.value.isNullOrEmpty()
+        val first = vm.firstLoading.value == true
+        val loading = vm.loading.value == true
+        bind.emptyBox.visibility = if (empty && !loading && !first) View.VISIBLE else View.GONE
+        bind.swipe.visibility = if (empty && !first) View.GONE else View.VISIBLE
+        if (!empty || loading || first) return
+        when (vm.emptyReason.value) {
+            ThreadListViewModel.EmptyReason.FILTERED -> {
+                bind.tvEmptyTitle.setText(R.string.empty_filtered_title)
+                bind.tvEmptyHint.setText(R.string.empty_filtered_hint)
+                bind.btnEmptyClear.visibility = View.VISIBLE
+                bind.btnEmptyAction.visibility = View.GONE
+                bind.btnEmptyAction.setOnClickListener(null)
             }
-            start()
+            ThreadListViewModel.EmptyReason.NO_CATALOG -> {
+                bind.tvEmptyTitle.setText(R.string.empty_no_catalog_title)
+                bind.tvEmptyHint.setText(R.string.empty_no_catalog_hint)
+                bind.btnEmptyClear.visibility = View.GONE
+                bind.btnEmptyAction.setText(R.string.sync_catalog)
+                bind.btnEmptyAction.visibility = View.VISIBLE
+                bind.btnEmptyAction.setOnClickListener { syncVm?.sync() ?: vm.refresh() }
+            }
+            ThreadListViewModel.EmptyReason.NETWORK -> {
+                bind.tvEmptyTitle.setText(R.string.empty_network_title)
+                bind.tvEmptyHint.setText(R.string.empty_network_hint)
+                bind.btnEmptyClear.visibility = View.GONE
+                bind.btnEmptyAction.setText(R.string.empty_action_refresh)
+                bind.btnEmptyAction.visibility = View.VISIBLE
+                bind.btnEmptyAction.setOnClickListener { vm.refresh() }
+            }
+            null -> {
+                bind.tvEmptyTitle.setText(
+                    if (isText) R.string.empty_title else R.string.empty_gallery_title
+                )
+                bind.tvEmptyHint.setText(
+                    if (isText) R.string.empty_hint else R.string.empty_gallery_hint
+                )
+                bind.btnEmptyClear.visibility = View.GONE
+                bind.btnEmptyAction.setText(R.string.empty_action_refresh)
+                bind.btnEmptyAction.visibility = View.VISIBLE
+                bind.btnEmptyAction.setOnClickListener { onManualRefresh() }
+            }
         }
-        if (collapse) {
-            compact.alpha = 0f
-            compact.visibility = View.VISIBLE
-            compact.animate().alpha(1f).setDuration(180).start()
-        } else {
-            compact.animate().alpha(0f).setDuration(180).withEndAction {
-                if (!titleCollapsed) compact.visibility = View.GONE
-            }.start()
-        }
+    }
+
+    /** 筛选按钮：应用中的阅读状态数量（0/1）。 */
+    private fun renderFilterButton() {
+        val n = if (vm.readFilter == -1) 0 else 1
+        bind.btnFilter.text = if (n > 0) getString(R.string.filter_count_n, n) else getString(R.string.filter_sheet)
     }
 
     private var firstResume = true
@@ -246,7 +267,7 @@ class ThreadListFragment : Fragment() {
         }
     }
 
-    /** 手动刷新：文学区走目录增量同步（完成后重载已加载页），贴图区回到第 1 页强制重抓。 */
+    /** 手动刷新：文学区走目录增量同步（后台，不阻塞导航），贴图区回到第 1 页强制重抓。 */
     private fun onManualRefresh() {
         val sync = syncVm
         if (sync != null) {
@@ -269,7 +290,7 @@ class ThreadListFragment : Fragment() {
                 // 同步刚结束
                 if (st.error != null) {
                     UiTips.snack(
-                        bind.root, getString(R.string.sync_failed, st.error), anchor = bind.tvPage
+                        bind.root, getString(R.string.sync_failed_cached, st.error), anchor = bind.tvPage
                     )
                 }
                 vm.reloadLoadedPages()
@@ -281,12 +302,12 @@ class ThreadListFragment : Fragment() {
         lastObservedRunning = st.running
     }
 
-    /** 标签筛选 chips：全部 + 目录里实际出现的标签（带数量）。 */
+    /** 标签筛选 chips：全部 + 目录里实际出现的标签（带数量），触摸高 48dp。 */
     private fun renderTags(counts: List<TagCount>) {
         if (counts == renderedTags && vm.tag == renderedTag) return
         renderedTags = counts
         renderedTag = vm.tag
-        bind.tagBar.visibility = if (counts.isEmpty()) View.GONE else View.VISIBLE
+        bind.tagBar.visibility = View.VISIBLE
         val row = bind.tagRow
         row.removeAllViews()
         addChip(row, getString(R.string.filter_all), vm.tag.isEmpty()) {
@@ -305,26 +326,6 @@ class ThreadListFragment : Fragment() {
         }
     }
 
-    /** 已读状态筛选：全部 / 未读 / 已读 / 已读完（文学区）。 */
-    private fun renderReadChips() {
-        bind.readBar.visibility = View.VISIBLE
-        bind.readRow.removeAllViews()
-        val options = listOf(
-            -1 to getString(R.string.filter_all),
-            0 to getString(R.string.filter_unread),
-            1 to getString(R.string.filter_read),
-            2 to getString(R.string.filter_finished)
-        )
-        options.forEach { (value, label) ->
-            addChip(bind.readRow, label, vm.readFilter == value) {
-                if (vm.readFilter != value) {
-                    vm.selectReadFilter(value)
-                    renderReadChips()
-                }
-            }
-        }
-    }
-
     /** 统一胶囊 chip：描边底 → 选中 soft 填充（isSelected 驱动），点击轻震。 */
     private fun addChip(
         row: LinearLayout,
@@ -335,20 +336,22 @@ class ThreadListFragment : Fragment() {
         val tv = TextView(requireContext(), null, 0, R.style.LitChip).apply {
             text = label
             isSelected = selected
+            minHeight = dp(48)
+            gravity = Gravity.CENTER
             setOnClickListener {
                 Haptics.tick(this)
                 onClick()
             }
         }
         tv.layoutParams = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ViewGroup.LayoutParams.WRAP_CONTENT, dp(48)
         ).apply { marginEnd = dp(8) }
         row.addView(tv)
     }
 
-    /** 跳页：底部弹层，页码宫格直达 + 输入兜底。 */
+    /** 跳页：底部弹层，页码宫格直达 + 输入兜底；总页数未知禁用提交。 */
     private fun showJumpSheet() {
-        JumpSheet.newInstance(vm.totalPages, vm.page) { n -> vm.load(n) }
+        JumpSheet.newInstance(vm.totalPages, vm.page, vm.totalKnown) { n -> vm.load(n) }
             .show(parentFragmentManager, "jump")
     }
 
@@ -358,14 +361,19 @@ class ThreadListFragment : Fragment() {
         val popup = PopupMenu(requireContext(), anchor, Gravity.END)
         popup.menu.add(0, MENU_VERSION, 0, getString(R.string.current_version, com.example.litreader.util.Constants.VERSION_NAME))
             .isEnabled = false
+        popup.menu.add(0, MENU_REFRESH, 1, getString(R.string.refresh))
         val blocked = vm.blockedCount()
-        popup.menu.add(0, MENU_KEYWORDS, 1,
+        popup.menu.add(0, MENU_KEYWORDS, 2,
             if (blocked > 0) getString(R.string.keyword_block_n, blocked) else getString(R.string.keyword_block)
         )
-        popup.menu.add(0, MENU_CHECK_UPDATE, 2, getString(R.string.check_update))
-        popup.menu.add(0, MENU_CRASH_LOGS, 3, getString(R.string.crash_logs))
+        popup.menu.add(0, MENU_CHECK_UPDATE, 3, getString(R.string.check_update))
+        popup.menu.add(0, MENU_CRASH_LOGS, 4, getString(R.string.crash_logs))
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
+                MENU_REFRESH -> {
+                    onManualRefresh()
+                    true
+                }
                 MENU_KEYWORDS -> {
                     KeywordSheet.newInstance(sourceId) {
                         vm.refilter()
@@ -384,6 +392,32 @@ class ThreadListFragment : Fragment() {
             }
         }
         popup.show()
+    }
+
+    /** 不喜欢按钮：状态翻转 + 可撤销（快照恢复标记前收藏态）。 */
+    private fun onDislikeToggle(t: ThreadEntity) {
+        val target = !t.dislike
+        if (target) Haptics.confirm(bind.root) else Haptics.tick(bind.root)
+        vm.setDislike(t, target) { snap, v ->
+            undoSnack(t.tid, snap, v, getString(if (target) R.string.dislike_marked else R.string.dislike_removed))
+        }
+    }
+
+    private fun undoSnack(tid: String, snap: MarkSnapshot, version: Int, text: String) {
+        UiTips.snack(
+            bind.root, text, getString(R.string.undo),
+            onAction = { vm.undoMark(tid, snap, version) },
+            anchor = bind.tvPage
+        )
+    }
+
+    /** 收藏按钮：点星不进正文；状态翻转 + 可撤销。 */
+    private fun onFavoriteToggle(t: ThreadEntity) {
+        Haptics.tick(bind.root)
+        val target = !t.favorite
+        vm.setFavorite(t, target) { snap, v ->
+            undoSnack(t.tid, snap, v, getString(if (target) R.string.fav_added else R.string.fav_removed))
+        }
     }
 
     /** 本地崩溃日志列表（App 未捕获异常落盘，最多 5 份）。 */
@@ -430,31 +464,96 @@ class ThreadListFragment : Fragment() {
             .show()
     }
 
+    /** 页码=最后成功加载的页；文学标「本地目录页」，贴图标「站点页」；总页数未知禁用跳页。 */
     private fun renderPageLabel() {
-        bind.tvPage.text = getString(R.string.page_label, vm.page, vm.totalPages)
+        val scope = getString(if (isText) R.string.page_scope_lit else R.string.page_scope_img)
+        bind.tvPage.text = if (vm.totalKnown) {
+            getString(R.string.page_label_scoped, vm.page, scope, vm.totalPages)
+        } else {
+            getString(R.string.page_label_unknown, vm.page, scope)
+        }
     }
 
     /** 长按收藏：状态翻转 + 轻提示（可撤销）+ 成功节奏触感。 */
     private fun onLongPress(t: ThreadEntity) {
         val adding = !t.favorite
-        vm.toggleFavorite(t)
+        Haptics.tick(bind.root)
         if (adding) Haptics.confirm(bind.root)
-        UiTips.snack(
-            bind.root,
-            getString(if (adding) R.string.fav_added else R.string.fav_removed),
-            getString(R.string.undo),
-            onAction = { vm.toggleFavorite(t.copy(favorite = adding)) }
-        )
+        vm.setFavorite(t, adding) { snap, v ->
+            undoSnack(t.tid, snap, v, getString(if (adding) R.string.fav_added else R.string.fav_removed))
+        }
     }
+
+    /** 左滑标记不喜欢：可见背景（danger 底 + 文案），条目即时隐藏，Snackbar 可撤销。 */
+    private fun setupSwipe() {
+        val cb = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) {
+            override fun onMove(
+                rv: androidx.recyclerview.widget.RecyclerView,
+                vh: androidx.recyclerview.widget.RecyclerView.ViewHolder,
+                target: androidx.recyclerview.widget.RecyclerView.ViewHolder
+            ) = false
+
+            override fun onChildDraw(
+                c: Canvas,
+                rv: androidx.recyclerview.widget.RecyclerView,
+                vh: androidx.recyclerview.widget.RecyclerView.ViewHolder,
+                dX: Float,
+                dY: Float,
+                actionState: Int,
+                isCurrentlyActive: Boolean
+            ) {
+                // 可见背景：左滑露出 danger 底 + 「不喜欢」文字与图标提示
+                if (dX < 0) {
+                    val view = vh.itemView
+                    val bg = ContextCompat.getColor(requireContext(), R.color.danger)
+                    val p = android.graphics.Paint().apply { color = bg }
+                    c.drawRect(
+                        view.right.toFloat() + dX, view.top.toFloat(),
+                        view.right.toFloat(), view.bottom.toFloat(), p
+                    )
+                    val alpha = (255f * (-dX / view.width)).coerceIn(0f, 255f).toInt()
+                    val text = getString(R.string.menu_act_dislike)
+                    val paint = android.graphics.Paint().apply {
+                        color = android.graphics.Color.WHITE
+                        textSize = 14 * resources.displayMetrics.density
+                        isAntiAlias = true
+                        this.alpha = alpha
+                    }
+                    val textW = paint.measureText(text)
+                    c.drawText(
+                        text,
+                        view.right - dp(24) - textW,
+                        view.centerY() + paint.textSize / 3,
+                        paint
+                    )
+                }
+                super.onChildDraw(c, rv, vh, dX, dY, actionState, isCurrentlyActive)
+            }
+
+            override fun onSwiped(vh: androidx.recyclerview.widget.RecyclerView.ViewHolder, dir: Int) {
+                val pos = vh.bindingAdapterPosition
+                if (pos == androidx.recyclerview.widget.RecyclerView.NO_POSITION) return
+                val t = adapter.itemAt(pos) ?: return
+                Haptics.confirm(bind.root)
+                vm.setDislike(t, true) { snap, v ->
+                    undoSnack(t.tid, snap, v, getString(R.string.dislike_marked))
+                }
+            }
+        }
+        ItemTouchHelper(cb).attachToRecyclerView(bind.recycler)
+    }
+
+    private fun View.centerY(): Float = (top + bottom) / 2f
 
     private fun open(t: ThreadEntity) = com.example.litreader.ui.ThreadNav.open(requireContext(), t)
 
     companion object {
         private const val ARG_SOURCE = "sourceId"
         private const val MENU_VERSION = 1
-        private const val MENU_CHECK_UPDATE = 2
-        private const val MENU_CRASH_LOGS = 3
-        private const val MENU_KEYWORDS = 4
+        private const val MENU_REFRESH = 2
+        private const val MENU_CHECK_UPDATE = 3
+        private const val MENU_CRASH_LOGS = 4
+        private const val MENU_KEYWORDS = 5
         fun newInstance(sourceId: String) = ThreadListFragment().apply {
             arguments = Bundle().apply { putString(ARG_SOURCE, sourceId) }
         }
