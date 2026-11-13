@@ -12,8 +12,10 @@ import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.litreader.App
 import com.example.litreader.R
@@ -23,6 +25,9 @@ import com.example.litreader.ui.list.ThreadAdapter
 import com.example.litreader.util.Haptics
 import com.example.litreader.util.Skeleton
 import com.example.litreader.util.UiTips
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** 搜索页签：常驻内存 + prefs 落盘；清空回初态，状态/错误/零结果分离。 */
 class SearchFragment : Fragment() {
@@ -32,6 +37,7 @@ class SearchFragment : Fragment() {
 
     private lateinit var fieldOff: Drawable
     private lateinit var fieldOn: Drawable
+    private var searchDebounceJob: Job? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -93,6 +99,7 @@ class SearchFragment : Fragment() {
         }
 
         bind.etSearch.setOnEditorActionListener { _, _, _ ->
+            searchDebounceJob?.cancel()
             val q = bind.etSearch.text.toString().trim()
             if (q.isNotEmpty()) {
                 showQueryUi()
@@ -139,6 +146,29 @@ class SearchFragment : Fragment() {
         } else {
             render(emptyList())
             renderHistory()
+        }
+
+        // 输入即搜：300ms 防抖；清空输入回初态/历史。回车仍走上面的立即搜索。
+        bind.etSearch.doAfterTextChanged { text ->
+            val q = text?.toString()?.trim().orEmpty()
+            searchDebounceJob?.cancel()
+            if (q.isEmpty()) {
+                if (vm.query.isNotEmpty()) {
+                    vm.clearQuery()
+                    bind.filterBar.visibility = View.GONE
+                    bind.tvSearchScope.visibility = View.GONE
+                    render(emptyList())
+                    renderHistory()
+                }
+                return@doAfterTextChanged
+            }
+            searchDebounceJob = viewLifecycleOwner.lifecycleScope.launch {
+                delay(300)
+                if (q != vm.query) {
+                    showQueryUi()
+                    vm.search(q)
+                }
+            }
         }
     }
 
@@ -195,15 +225,24 @@ class SearchFragment : Fragment() {
         val row = bind.historyRow
         row.removeAllViews()
         items.forEach { kw ->
+            // 词与 ✕ 共用一枚胶囊：去掉删除按钮自带的背景和负 margin，
+            // 避免出现两个叠在一起的圆角框。
             val item = LinearLayout(requireContext()).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
+                background = ContextCompat.getDrawable(requireContext(), R.drawable.bg_chip)
+                setPadding(dp(13), 0, dp(4), 0)
+                minimumHeight = dp(48)
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
                 ).apply { marginEnd = (8 * resources.displayMetrics.density).toInt() }
             }
             val chip = TextView(requireContext(), null, 0, R.style.LitChip).apply {
                 text = kw
+                background = null
+                setPadding(0, 0, 0, 0)
+                minHeight = dp(48)
+                gravity = Gravity.CENTER
                 setOnClickListener {
                     Haptics.tick(this)
                     bind.etSearch.setText(kw)
@@ -221,7 +260,6 @@ class SearchFragment : Fragment() {
                 minHeight = dp(48)
                 minWidth = dp(32)
                 gravity = Gravity.CENTER
-                background = ContextCompat.getDrawable(requireContext(), R.drawable.bg_filter_row)
                 setOnClickListener {
                     Haptics.key(this)
                     vm.removeHistory(kw)
@@ -230,8 +268,8 @@ class SearchFragment : Fragment() {
             }
             item.addView(chip)
             item.addView(del, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { marginStart = -(4 * resources.displayMetrics.density).toInt() })
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT
+            ))
             row.addView(item)
         }
     }

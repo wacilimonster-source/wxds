@@ -11,6 +11,7 @@ import com.example.litreader.data.repo.MarkSnapshot
 import com.example.litreader.data.source.SourceRegistry
 import com.example.litreader.data.source.SourceStyle
 import com.example.litreader.util.KeywordBlock
+import com.example.litreader.util.NetError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -147,8 +148,9 @@ class ThreadListViewModel(
                 minLoadedPage = this@ThreadListViewModel.page
                 maxLoadedPage = this@ThreadListViewModel.page
                 noMore = list.isEmpty()
-                _threads.value = filtered()
-                _emptyReason.value = emptyReasonFor(list)
+                val shown = filtered()
+                _threads.value = shown
+                _emptyReason.value = emptyReasonFor(shown)
                 if (isImage) {
                     siteTotalPages = repo.sitePageCount(sourceId)
                     validPages = repo.validPageCount(sourceId)
@@ -166,7 +168,7 @@ class ThreadListViewModel(
                 if (reqId != requestId) return@launch
                 this@ThreadListViewModel.page = prevPage  // 失败回滚页码，items 不动
                 if (accumulated.isEmpty()) _emptyReason.value = EmptyReason.NETWORK
-                else _error.value = "加载失败：${e.message ?: "网络错误"}"
+                else _error.value = "加载失败：${NetError.friendly(e)}"
             } finally {
                 if (reqId == requestId) {
                     _loading.value = false
@@ -253,9 +255,13 @@ class ThreadListViewModel(
                 accumulated.clear()
                 accumulated += all
                 noMore = false
-                _threads.value = filtered()
-                _emptyReason.value = emptyReasonFor(all)
+                val shown = filtered()
+                _threads.value = shown
+                _emptyReason.value = emptyReasonFor(shown)
                 if (!isImage) {
+                    // 目录同步完成后首屏可能仍停留在“共 1 页”：这里必须重算总条数，
+                    // 否则页码/跳页/无限滚动会一直按同步前的空目录计算。
+                    totalCount = repo.categoryCount(sourceId, category, tag, readFilter)
                     _tags.value = repo.tagCounts(sourceId)
                     tagsLoaded = true
                 }
@@ -274,10 +280,18 @@ class ThreadListViewModel(
         return accumulated.count { !it.dislike && KeywordBlock.hit(it.title, kws) }
     }
 
-    /** 关键词屏蔽 + 不喜欢过滤：accumulated 存原始数据，发布时过滤（增删词/标记后 refilter 即时生效）。 */
+    /**
+     * 关键词屏蔽 + 不喜欢 + 阅读状态过滤：accumulated 存原始数据，发布时过滤。
+     * 文学区的阅读筛选已下推到 SQL，贴图区是站点页快照，只能在这一层过滤；
+     * 统一放在这里也保证标记/撤销后 refilter 立即生效。
+     */
     private fun filtered(): List<ThreadEntity> {
         val kws = KeywordBlock.list(prefs, sourceId)
-        return accumulated.filter { !it.dislike && (kws.isEmpty() || !KeywordBlock.hit(it.title, kws)) }
+        return accumulated.filter {
+            !it.dislike &&
+                (readFilter == -1 || it.readState == readFilter) &&
+                (kws.isEmpty() || !KeywordBlock.hit(it.title, kws))
+        }
     }
 
     /** 屏蔽词变化后重发布（不重查库、不动滚动位置，DiffUtil 平滑增删）。 */

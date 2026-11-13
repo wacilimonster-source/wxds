@@ -44,6 +44,8 @@ class ThreadListFragment : Fragment() {
     private var sourceId: String = ""
     private var syncVm: CatalogSyncViewModel? = null
     private var lastObservedRunning: Boolean? = null
+    /** 首轮目录同步是否进行中：空列表时展示「同步中」而不是误导性的「还没有本地目录」。 */
+    private var syncRunning = false
     private var isText = false
     /** 已读比例表：只在进入/返回时刷新，滚动追加页时复用，避免主线程反复读 prefs。 */
     private var progressMap: Map<String, Float> = emptyMap()
@@ -111,7 +113,7 @@ class ThreadListFragment : Fragment() {
         bind.swipe.setColorSchemeColors(ContextCompat.getColor(requireContext(), R.color.accent))
         bind.swipe.setOnRefreshListener { onManualRefresh() }
         bind.tvPage.setOnClickListener { showJumpSheet() }
-        bind.tvPage.contentDescription = getString(R.string.jump_page)
+        bind.tvPage.contentDescription = getString(R.string.jump_sheet_title)
         bind.btnSearch.setOnClickListener {
             (requireActivity() as? com.example.litreader.ui.main.MainActivity)?.openSearch(source.id, focus = true)
         }
@@ -129,7 +131,11 @@ class ThreadListFragment : Fragment() {
                 super.onScrolled(rv, dx, dy)
                 if (dy <= 0) return
                 val lm = rv.layoutManager as? LinearLayoutManager ?: return
-                if (lm.findLastVisibleItemPosition() >= adapter.itemCount - 6) vm.loadMore()
+                if (lm.findLastVisibleItemPosition() >= adapter.itemCount - 6) {
+                    // loadMore 会立即发布 appending，observer 里的 footer notify 若在
+                    // onScrolled 内同步执行，会触发 RecyclerView 的 “computing layout” 异常。
+                    rv.post { vm.loadMore() }
+                }
             }
         })
 
@@ -198,6 +204,14 @@ class ThreadListFragment : Fragment() {
         bind.emptyBox.visibility = if (empty && !loading && !first) View.VISIBLE else View.GONE
         bind.swipe.visibility = if (empty && !first) View.GONE else View.VISIBLE
         if (!empty || loading || first) return
+        if (syncRunning) {
+            bind.tvEmptyTitle.setText(R.string.empty_syncing_title)
+            bind.tvEmptyHint.setText(R.string.empty_syncing_hint)
+            bind.btnEmptyClear.visibility = View.GONE
+            bind.btnEmptyAction.visibility = View.GONE
+            bind.btnEmptyAction.setOnClickListener(null)
+            return
+        }
         when (vm.emptyReason.value) {
             ThreadListViewModel.EmptyReason.FILTERED -> {
                 bind.tvEmptyTitle.setText(R.string.empty_filtered_title)
@@ -279,6 +293,7 @@ class ThreadListFragment : Fragment() {
     }
 
     private fun renderSync(st: CatalogSyncViewModel.SyncState) {
+        syncRunning = st.running
         if (st.running) {
             bind.tvSyncStatus.visibility = View.VISIBLE
             bind.tvSyncStatus.text = getString(
@@ -300,6 +315,7 @@ class ThreadListFragment : Fragment() {
             }
         }
         lastObservedRunning = st.running
+        if (vm.threads.value.isNullOrEmpty()) renderEmpty()
     }
 
     /** 标签筛选 chips：全部 + 目录里实际出现的标签（带数量），触摸高 48dp。 */

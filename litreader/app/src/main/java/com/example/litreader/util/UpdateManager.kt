@@ -21,24 +21,32 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
- * 应用内更新。raw.githubusercontent.com 在国内时通时断，
- * 因此检查与下载都按 raw → jsDelivr（多个节点）的顺序回退；
- * 版本检查带 ?ts= 防止 CDN 返回陈旧缓存；APK 下载带百分比进度对话框。
+ * 应用内更新。版本信息与 APK 由 CI 发布在 release 分支（每次 force-push，只保留最新版），
+ * raw.githubusercontent.com 在国内时通时断，因此检查与下载都按 raw → jsDelivr（多个节点）回退；
+ * 末尾保留 master 通道作为迁移期兜底。版本检查带 ?ts= 防止 CDN 返回陈旧缓存；
+ * APK 下载带百分比进度对话框，安装前校验 SHA-256。
  */
 object UpdateManager {
     private const val REPO = "wacilimonster-source/wxds"
+    private const val REF = "release"
 
     // 版本检查 raw 优先（缓存仅 5 分钟、永远新鲜），jsDelivr 各节点作被墙回退
     private val VERSION_URLS = listOf(
+        "https://raw.githubusercontent.com/$REPO/$REF/latest.json",
+        "https://cdn.jsdelivr.net/gh/$REPO@$REF/latest.json",
+        "https://fastly.jsdelivr.net/gh/$REPO@$REF/latest.json",
+        "https://gcore.jsdelivr.net/gh/$REPO@$REF/latest.json",
+        // 迁移期兜底：master 的 latest.json 冻结在 0.30，供旧构建继续找到过渡包
         "https://raw.githubusercontent.com/$REPO/master/latest.json",
-        "https://cdn.jsdelivr.net/gh/$REPO@master/latest.json",
-        "https://fastly.jsdelivr.net/gh/$REPO@master/latest.json",
-        "https://gcore.jsdelivr.net/gh/$REPO@master/latest.json"
+        "https://cdn.jsdelivr.net/gh/$REPO@master/latest.json"
     )
     private val APK_BASES = listOf(
+        "https://cdn.jsdelivr.net/gh/$REPO@$REF/",
+        "https://fastly.jsdelivr.net/gh/$REPO@$REF/",
+        "https://gcore.jsdelivr.net/gh/$REPO@$REF/",
+        "https://raw.githubusercontent.com/$REPO/$REF/",
+        // 迁移期兜底
         "https://cdn.jsdelivr.net/gh/$REPO@master/",
-        "https://fastly.jsdelivr.net/gh/$REPO@master/",
-        "https://gcore.jsdelivr.net/gh/$REPO@master/",
         "https://raw.githubusercontent.com/$REPO/master/"
     )
 
@@ -53,7 +61,9 @@ object UpdateManager {
         val versionName: String,
         val versionCode: Int,
         val apkName: String,
-        val notes: String = ""
+        val notes: String = "",
+        val sha256: String = "",
+        val apkUrl: String = ""
     )
 
     @Suppress("UNUSED_PARAMETER")
@@ -86,8 +96,14 @@ object UpdateManager {
                     val versionName = json.optString("versionName")
                     val apk = json.optString("apk")
                     if (versionName.isNotEmpty() && apk.isNotEmpty()) {
+                        val explicitCode = json.optInt("versionCode", 0)
                         return@withContext ReleaseInfo(
-                            versionName, parseVersionCode(versionName), apk, json.optString("notes")
+                            versionName = versionName,
+                            versionCode = if (explicitCode > 0) explicitCode else parseVersionCode(versionName),
+                            apkName = apk,
+                            notes = json.optString("notes"),
+                            sha256 = json.optString("sha256"),
+                            apkUrl = json.optString("apkUrl")
                         )
                     }
                 }
@@ -167,16 +183,32 @@ object UpdateManager {
                 }
             }
 
+            val candidates = buildList {
+                addAll(APK_BASES.map { it + info.apkName })
+                // GitHub Release 附件兜底：国内可能被墙，但前面 CDN 都失败时值得一试
+                if (info.apkUrl.startsWith("https://")) add(info.apkUrl)
+            }
             var ok = false
             try {
-                for (base in APK_BASES) {
+                for (url in candidates) {
                     ok = withContext(Dispatchers.IO) {
-                        runCatching { downloadTo(base + info.apkName, file, ::onProgress) }.getOrDefault(false)
+                        runCatching { downloadTo(url, file, ::onProgress) }.getOrDefault(false)
                     }
                     if (ok) break
                 }
             } finally {
                 dialog.dismiss()
+            }
+            if (ok && info.sha256.isNotBlank()) {
+                val expected = info.sha256.trim().lowercase()
+                val actual = withContext(Dispatchers.IO) {
+                    runCatching { sha256(file) }.getOrDefault("")
+                }
+                if (actual != expected) {
+                    file.delete()
+                    showToast(activity, "安装包校验失败，请稍后重试")
+                    return@launch
+                }
             }
             if (ok) {
                 installApk(activity, file)
@@ -211,6 +243,20 @@ object UpdateManager {
             if (file.exists()) file.delete()
             return tmp.renameTo(file)
         }
+    }
+
+    /** 计算文件 SHA-256，用于确认下载到的 APK 与 latest.json 描述的是同一个文件。 */
+    private fun sha256(file: File): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buf = ByteArray(64 * 1024)
+            while (true) {
+                val n = input.read(buf)
+                if (n == -1) break
+                digest.update(buf, 0, n)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xFF) }
     }
 
     private fun installApk(activity: ComponentActivity, file: File) {

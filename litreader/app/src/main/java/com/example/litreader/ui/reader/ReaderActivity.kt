@@ -1,5 +1,6 @@
 package com.example.litreader.ui.reader
 
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -50,6 +51,7 @@ import kotlinx.coroutines.launch
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
 import com.example.litreader.util.Haptics
+import com.example.litreader.util.NetError
 import com.example.litreader.util.ReadProgress
 import com.example.litreader.util.UiTips
 import kotlinx.coroutines.withContext
@@ -225,7 +227,7 @@ class ReaderActivity : AppCompatActivity() {
                     renderFinishedLabel()
                 }
             } catch (e: Exception) {
-                showError(e.message ?: "网络错误")
+                showError(NetError.friendly(e))
             } finally {
                 bind.progress.visibility = View.GONE
             }
@@ -755,19 +757,26 @@ class ReaderActivity : AppCompatActivity() {
         popup.show()
     }
 
+    /** 阅读器夜间主题时，正文搜索/楼层跳转用深色对话框；其他主题跟 App 亮色。 */
+    private fun dialogContext(): Context =
+        if (themes[themeIdx] == ReaderThemeSet.NIGHT)
+            androidx.appcompat.view.ContextThemeWrapper(this, R.style.Theme_LitReader_DarkDialog)
+        else this
+
     private fun showFloorJump() {
         if (floorOffsets.isEmpty()) return
+        val ctx = dialogContext()
         val floors = floorOffsets.keys.sorted()
-        val input = EditText(this).apply {
+        val input = EditText(ctx).apply {
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
             hint = "${floors.first()} - ${floors.last()}"
         }
-        val wrap = FrameLayout(this).apply {
+        val wrap = FrameLayout(ctx).apply {
             val pad = dp(20)
             setPadding(pad, dp(10), pad, 0)
             addView(input)
         }
-        val dialog = AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(ctx)
             .setTitle(getString(R.string.reader_floor_jump))
             .setView(wrap)
             .setPositiveButton(R.string.jump_go) { _, _ ->
@@ -789,18 +798,19 @@ class ReaderActivity : AppCompatActivity() {
 
     private fun showSearchDialog() {
         if (!loaded) return
-        val input = EditText(this).apply {
+        val ctx = dialogContext()
+        val input = EditText(ctx).apply {
             inputType = android.text.InputType.TYPE_CLASS_TEXT
             imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
             hint = getString(R.string.reader_search_hint)
             setText(searchTerm)
         }
-        val wrap = FrameLayout(this).apply {
+        val wrap = FrameLayout(ctx).apply {
             val pad = dp(20)
             setPadding(pad, dp(10), pad, 0)
             addView(input)
         }
-        val dialog = AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(ctx)
             .setTitle(getString(R.string.reader_search_title))
             .setView(wrap)
             .setPositiveButton(R.string.reader_search_next, null)

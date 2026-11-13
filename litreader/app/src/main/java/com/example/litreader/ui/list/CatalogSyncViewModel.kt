@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.litreader.data.db.AppDatabase
 import com.example.litreader.data.repo.BookRepository
+import com.example.litreader.util.NetError
 import kotlinx.coroutines.launch
 
 /**
@@ -43,7 +44,7 @@ class CatalogSyncViewModel(
                 }
                 _state.value = SyncState(false, 0, 0, 0, null)
             } catch (e: Exception) {
-                _state.value = SyncState(false, 0, 0, 0, e.message ?: "网络错误")
+                _state.value = SyncState(false, 0, 0, 0, NetError.friendly(e))
             } finally {
                 running = false
             }

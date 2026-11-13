@@ -125,9 +125,8 @@ class JumpSheet : BottomSheetDialogFragment() {
         }
         input = EditText(ctx).apply {
             inputType = InputType.TYPE_CLASS_NUMBER
-            hint = getString(
-                if (totalKnown) R.string.jump_input_hint else R.string.jump_input_unknown
-            )
+            hint = if (totalKnown) getString(R.string.jump_input_hint, total)
+            else getString(R.string.jump_input_unknown)
             textSize = 13f
             setSingleLine(true)
             isEnabled = totalKnown

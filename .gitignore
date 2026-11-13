@@ -10,7 +10,11 @@ build/
 *.dex
 local.properties
 *.keystore
-.jks
+*.jks
+
+# Release artifacts are published by CI; the v0.30 legacy APK stays tracked.
+*.apk
+*.idsig
 
 # IDE
 .idea/

@@ -9,6 +9,7 @@ import com.example.litreader.data.model.Post
 import com.example.litreader.data.model.ThreadItem
 import com.example.litreader.data.source.CatalogPage
 import com.example.litreader.data.source.SourceRegistry
+import com.example.litreader.data.source.ThreadPage
 import com.example.litreader.data.source.SourceStyle
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -303,16 +304,37 @@ class BookRepository(
 
     /** 正文：先读缓存（离线可看），没有才在线抓并写缓存。 */
     suspend fun getThread(sourceId: String, tid: String, onlyOp: Boolean): Pair<List<Post>, Boolean> {
-        val cached = db.threadContentDao().get(tid, onlyOp)
-        if (cached != null) {
-            val cachedPosts = runCatching { decodePosts(cached.html) }.getOrNull()
-            if (cachedPosts != null) return cachedPosts to true
-        }
-        val posts = source(sourceId).getThread(tid, onlyOp)
-        db.threadContentDao().upsert(ThreadContentEntity(tid, onlyOp, encodePosts(posts), System.currentTimeMillis()))
-        extractThumb(tid, posts)
-        return posts to false
+        val (page, cached) = getThreadPage(sourceId, tid, onlyOp, 1)
+        return page.posts to cached
     }
+
+    /**
+     * 帖子详情一页：page=1 走缓存（离线可看）+ 写缓存；page>1 仅在线拉取。
+     * 缓存内容升级为 {"total":N,"posts":[...]}，旧版纯数组缓存仍可读（total 视为 1）。
+     */
+    suspend fun getThreadPage(
+        sourceId: String,
+        tid: String,
+        onlyOp: Boolean,
+        page: Int
+    ): Pair<ThreadPage, Boolean> {
+        if (page <= 1) {
+            val cached = db.threadContentDao().get(tid, onlyOp)
+            if (cached != null) {
+                val cachedPage = runCatching { decodePage(cached.html) }.getOrNull()
+                if (cachedPage != null) return ThreadPage(cachedPage.posts, cachedPage.totalPages) to true
+            }
+            val fresh = source(sourceId).getThreadPage(tid, onlyOp, 1)
+            db.threadContentDao().upsert(
+                ThreadContentEntity(tid, onlyOp, encodePage(fresh.posts, fresh.totalPages), System.currentTimeMillis())
+            )
+            extractThumb(tid, fresh.posts)
+            return fresh to false
+        }
+        return source(sourceId).getThreadPage(tid, onlyOp, page) to false
+    }
+
+    private data class CachedPage(val posts: List<Post>, val totalPages: Int)
 
     /** 正文缓存落库后顺手提取首个图片地址：列表卡片（贴图区）以后显示缩略。 */
     private suspend fun extractThumb(tid: String, posts: List<Post>) {
@@ -324,7 +346,12 @@ class BookRepository(
         runCatching { db.threadDao().updateThumb(tid, src) }
     }
 
-    private fun encodePosts(posts: List<Post>): String = org.json.JSONArray().apply {
+    private fun encodePage(posts: List<Post>, totalPages: Int): String = org.json.JSONObject().apply {
+        put("total", totalPages)
+        put("posts", postsToJson(posts))
+    }.toString()
+
+    private fun postsToJson(posts: List<Post>): org.json.JSONArray = org.json.JSONArray().apply {
         posts.forEach { p ->
             put(
                 org.json.JSONObject().apply {
@@ -335,7 +362,15 @@ class BookRepository(
                 }
             )
         }
-    }.toString()
+    }
+
+    private fun decodePage(json: String): CachedPage {
+        val text = json.trim()
+        if (text.startsWith("[")) return CachedPage(decodePosts(text), 1)  // 旧版纯数组缓存
+        val obj = org.json.JSONObject(text)
+        val total = obj.optInt("total", 1).coerceAtLeast(1)
+        return CachedPage(decodePosts(obj.getJSONArray("posts").toString()), total)
+    }
 
     private fun decodePosts(json: String): List<Post> {
         val arr = org.json.JSONArray(json)

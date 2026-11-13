@@ -4,6 +4,36 @@ plugins {
     id 'kotlin-kapt'
 }
 
+// 版本号由 tag / CI 注入；本地构建取“最近 v* tag 与 0.29 中较大者”，
+// 避免仓库里遗留的 v0.1 tag 或版本回退导致 versionCode 低于已安装版本。
+def parseVersionCode = { String name ->
+    try {
+        def parts = name.tokenize('.')
+        (parts.size() > 0 ? parts[0].toInteger() : 0) * 10000 +
+        (parts.size() > 1 ? parts[1].toInteger() : 0) * 100 +
+        (parts.size() > 2 ? parts[2].toInteger() : 0)
+    } catch (ignored) {
+        -1
+    }
+}
+def gitVersionName = null
+try {
+    def proc = ['git', 'describe', '--tags', '--abbrev=0', '--match', 'v[0-9]*']
+            .execute(null, rootDir)
+    if (proc.waitFor() == 0) {
+        gitVersionName = proc.text.trim().replaceFirst(/^v/, '')
+    }
+} catch (ignored) {
+}
+def defaultVersionName = '0.29'
+if (gitVersionName && parseVersionCode(gitVersionName) > parseVersionCode(defaultVersionName)) {
+    defaultVersionName = gitVersionName
+}
+def appVersionName = (findProperty('versionName') ?: defaultVersionName).toString()
+def appVersionCode = (findProperty('versionCode') ?: parseVersionCode(appVersionName)).toString().toInteger()
+
+def keystoreFile = System.getenv('LITREADER_KEYSTORE_FILE')
+
 android {
     namespace 'com.example.litreader'
     compileSdk 34
@@ -11,11 +41,30 @@ android {
         applicationId "com.example.litreader"
         minSdk 24
         targetSdk 34
-        versionCode 30
-        versionName "0.29"
+        versionCode appVersionCode
+        versionName appVersionName
     }
     buildFeatures {
         viewBinding true
+        buildConfig true
+    }
+    signingConfigs {
+        release {
+            if (keystoreFile) {
+                storeFile file(keystoreFile)
+                storePassword System.getenv('LITREADER_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('LITREADER_KEY_ALIAS')
+                keyPassword System.getenv('LITREADER_KEY_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (keystoreFile) {
+                signingConfig signingConfigs.release
+            }
+        }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17

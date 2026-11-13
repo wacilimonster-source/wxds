@@ -151,6 +151,12 @@
     <string name="jump_sheet_title">跳转到页</string>
     <string name="jump_total">共 %1$d 页</string>
     <string name="jump_input_hint">或输入页码 1 - %1$d</string>
+    <string name="floor_loaded_n">全部楼层 · 已加载 %1$d 楼</string>
+    <string name="floor_load_more">点此加载更多</string>
+    <string name="floor_all_loaded">已到底</string>
+    <string name="floor_load_failed">加载更多失败：%1$s</string>
+    <string name="empty_syncing_title">正在同步目录…</string>
+    <string name="empty_syncing_hint">首次同步约需 1 分钟，完成后自动展示</string>
     <string name="continue_reading">继续阅读</string>
     <string name="reader_start_hint">从头开始</string>
     <string name="continue_last">继续阅读 · %1$s</string>

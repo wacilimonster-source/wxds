@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 画廊顶栏压暗层：浅色图片上保证返回/标题/序号可读。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:startColor="#CC000000"
+        android:endColor="#00000000" />
+</shape>

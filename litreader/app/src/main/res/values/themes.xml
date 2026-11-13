@@ -13,6 +13,20 @@
         <item name="android:windowBackground">@color/bgPaper</item>
     </style>
 
+    <!-- 阅读器夜间主题里的正文搜索/楼层跳转：深色对话框，避免白底刺眼。 -->
+    <style name="Theme.LitReader.DarkDialog" parent="Theme.Material3.Dark.Dialog.Alert">
+        <item name="colorPrimary">@color/accentOnDark</item>
+        <item name="colorOnPrimary">@color/onPrimary</item>
+        <item name="colorSurface">#24201A</item>
+        <item name="colorSurfaceContainerHigh">#24201A</item>
+        <item name="colorOnSurface">#EDE5D8</item>
+        <item name="colorOnSurfaceVariant">#A3988A</item>
+        <item name="android:textColorPrimary">#EDE5D8</item>
+        <item name="android:textColorSecondary">#A3988A</item>
+        <item name="android:colorBackground">#1E1B16</item>
+        <item name="android:colorBackgroundFloating">#1E1B16</item>
+    </style>
+
     <style name="NavIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
         <item name="android:color">@color/accentSoft</item>
     </style>

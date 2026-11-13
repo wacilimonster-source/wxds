@@ -22,7 +22,10 @@ object UiTips {
             view, text,
             if (long || onAction != null) Snackbar.LENGTH_LONG else Snackbar.LENGTH_SHORT
         )
-        anchor?.let { bar.anchorView = it }
+        // Snackbar 默认贴在窗口底部，会压住 MainActivity 的底部导航；
+        // 未显式指定 anchor 时，自动锚到底部导航（提示落在导航上沿）。
+        val finalAnchor = anchor ?: view.rootView.findViewById<View>(R.id.bottomNav)
+        finalAnchor?.let { bar.anchorView = it }
         bar.view.background = androidx.core.content.ContextCompat.getDrawable(
             view.context, R.drawable.bg_snack
         )

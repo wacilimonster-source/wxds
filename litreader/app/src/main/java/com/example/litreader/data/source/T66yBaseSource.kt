@@ -83,11 +83,16 @@ abstract class T66yBaseSource : BookSource {
 
     /** 详情统一走 read.php（列表里的 htm_data 静态页路径不可推算，直接访问会 404）。 */
     override suspend fun getThread(tid: String, onlyOp: Boolean): List<Post> =
+        getThreadPage(tid, onlyOp, 1).posts
+
+    /** 站点详情分页：游客每页约 3 帖；按 page 继续拉取。 */
+    override suspend fun getThreadPage(tid: String, onlyOp: Boolean, page: Int): ThreadPage =
         withContext(Dispatchers.IO) {
             val toread = if (onlyOp) "&toread=2" else "&toread=1"
-            val url = "$base/read.php?tid=$tid$toread"
+            val safePage = page.coerceAtLeast(1)
+            val url = "$base/read.php?tid=$tid$toread&page=$safePage"
             val doc = Jsoup.parse(ByteArrayInputStream(HttpClient.fetch(url)), null, base)
-            doc.select(".tpc_content").mapIndexedNotNull { idx, el ->
+            val posts = doc.select(".tpc_content").mapIndexedNotNull { idx, el ->
                 AdFilter.clean(el)
                 fixLazyImages(el)
                 val content = el.html()
@@ -104,7 +109,17 @@ abstract class T66yBaseSource : BookSource {
                     dateText = dateEl?.text()?.trim() ?: ""
                 )
             }
+            ThreadPage(posts, parseThreadPages(doc, tid))
         }
+
+    /** 从 read.php 的翻页链接解析站点总页数（无链接=1 页）。 */
+    private fun parseThreadPages(doc: org.jsoup.nodes.Document, tid: String): Int {
+        // 注意不能匹配 fpage=0：page 参数前必须是 & 或 &amp;（Jsoup 序列化后为 &amp;）
+        val re = Regex("""read\.php\?tid=$tid[^"']*?(?:&amp;|&)page=(\d+)""")
+        return re.findAll(doc.html())
+            .mapNotNull { it.groupValues[1].toIntOrNull() }
+            .maxOrNull() ?: 1
+    }
 
     /** 向上找到楼层所在的 table 容器。 */
     private fun ancestorTable(el: Element): Element? {

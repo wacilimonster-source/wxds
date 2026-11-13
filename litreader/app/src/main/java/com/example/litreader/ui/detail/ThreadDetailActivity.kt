@@ -15,7 +15,9 @@ import com.example.litreader.data.repo.BookRepository
 import com.example.litreader.data.source.SourceRegistry
 import com.example.litreader.databinding.ActivityDetailBinding
 import com.example.litreader.ui.reader.ReaderActivity
+import com.example.litreader.util.NetError
 import com.example.litreader.util.ReadProgress
+import com.example.litreader.util.UiTips
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +33,11 @@ class ThreadDetailActivity : AppCompatActivity() {
     private var onlyOp = true
     private var posts: List<Post> = emptyList()
     private var floorPage = 1
+    /** 站点详情页（游客每页约 3 帖）；「全部楼层」按站点页继续加载。 */
+    private var sitePage = 1
+    private var siteTotalPages = 1
+    private var loadingMore = false
+    private var hasMoreSitePages = false
     private var fontSize = 17
     private var favorite = false
     private var fromCache = false
@@ -115,7 +122,12 @@ class ThreadDetailActivity : AppCompatActivity() {
             bind.btnFontDown.setOnClickListener { setFont(fontSize - 1) }
             bind.btnPrevFloor.setOnClickListener { if (floorPage > 1) { floorPage--; renderPosts() } }
             bind.btnNextFloor.setOnClickListener {
-                if (floorPage < totalPages()) { floorPage++; renderPosts() }
+                if (!onlyOp) {
+                    if (hasMoreSitePages && !loadingMore) loadMoreFloors()
+                } else if (floorPage < totalPages()) {
+                    floorPage++
+                    renderPosts()
+                }
             }
             load()
         }
@@ -132,22 +144,27 @@ class ThreadDetailActivity : AppCompatActivity() {
         if (dark) bind.web.setBackgroundColor(ContextCompat.getColor(this, R.color.bgPaper))
     }
 
-    private fun totalPages(): Int = max(1, ceil(posts.size / FLOORS_PER_PAGE.toDouble()).toInt())
+    private fun totalPages(): Int =
+        if (!onlyOp) 1 else max(1, ceil(posts.size / FLOORS_PER_PAGE.toDouble()).toInt())
 
     private fun load() {
         bind.progress.visibility = View.VISIBLE
         lifecycleScope.launch {
             try {
-                val (p, cached) = repo.getThread(sourceId, tid, onlyOp)
-                posts = p
+                val (pageData, cached) = repo.getThreadPage(sourceId, tid, onlyOp, 1)
+                posts = pageData.posts
                 fromCache = cached
                 floorPage = 1
+                sitePage = 1
+                siteTotalPages = if (onlyOp) 1 else pageData.totalPages.coerceAtLeast(1)
+                // 旧版缓存没有 total；先给一次「加载更多」入口，点一次即可校正。
+                hasMoreSitePages = !onlyOp && (siteTotalPages > 1 || cached)
                 renderPosts()
                 // 打开即记为已读（不影响已读完标记）
                 repo.markRead(tid)
             } catch (e: Exception) {
                 bind.web.loadDataWithBaseURL(
-                    BASE_URL, readerHtml("<p>加载失败：${e.message ?: "网络错误"}</p><p>已缓存的章节在联网后仍可离线重读。</p>"),
+                    BASE_URL, readerHtml("<p>加载失败：${NetError.friendly(e)}</p><p>已缓存的章节在联网后仍可离线重读。</p>"),
                     "text/html", "utf-8", null
                 )
             } finally {
@@ -182,15 +199,16 @@ class ThreadDetailActivity : AppCompatActivity() {
         }.toString()
     }
 
-    private fun renderPosts() {
+    private fun renderPosts(scrollToBottom: Boolean = false) {
         collectImageUrls()
         if (posts.isEmpty()) {
             bind.web.loadDataWithBaseURL(BASE_URL, readerHtml("<p>暂无内容，可能需要登录或帖子已被删除。</p>"), "text/html", "utf-8", null)
             renderFloorBar()
             return
         }
-        val from = (floorPage - 1) * FLOORS_PER_PAGE
-        val to = minOf(posts.size, from + FLOORS_PER_PAGE)
+        // 「全部楼层」把已加载的站点页一次渲染完；「只看楼主」仍按 20 楼本地分页。
+        val from = if (!onlyOp) 0 else (floorPage - 1) * FLOORS_PER_PAGE
+        val to = if (!onlyOp) posts.size else minOf(posts.size, from + FLOORS_PER_PAGE)
         val body = StringBuilder()
         posts.subList(from, to).forEach { p ->
             body.append("<div class='post'>")
@@ -204,6 +222,9 @@ class ThreadDetailActivity : AppCompatActivity() {
         }
         bind.web.loadDataWithBaseURL(BASE_URL, readerHtml(body.toString()), "text/html", "utf-8", null)
         renderFloorBar()
+        if (scrollToBottom) {
+            bind.web.postDelayed({ bind.web.scrollTo(0, bind.web.contentHeight) }, 350)
+        }
     }
 
     /** 从全部楼层正文提取图片地址（懒加载已在抓取阶段补到 src），供画廊浏览。 */
@@ -225,18 +246,62 @@ class ThreadDetailActivity : AppCompatActivity() {
         if (posts.isEmpty()) {
             bind.tvFloorPage.text = if (onlyOp) "只看楼主 · 未加载" else "全部楼层 · 未加载"
             bind.tvFloorPos.text = "—"
+        } else if (onlyOp) {
+            val extra = if (imageUrls.isNotEmpty()) " · ${imageUrls.size} 图" else ""
+            bind.tvFloorPage.text = "只看楼主 · 共 ${posts.size} 楼$extra"
+            bind.tvFloorPos.text = "第 $floorPage / $total 页"
         } else {
             val extra = if (imageUrls.isNotEmpty()) " · ${imageUrls.size} 图" else ""
-            bind.tvFloorPage.text = if (onlyOp) "只看楼主 · 共 ${posts.size} 楼$extra" else "全部楼层 · 共 ${posts.size} 楼$extra"
-            bind.tvFloorPos.text = "第 $floorPage / $total 页"
+            val more = when {
+                loadingMore -> " · 加载中…"
+                hasMoreSitePages -> " · ${getString(R.string.floor_load_more)}"
+                else -> " · ${getString(R.string.floor_all_loaded)}"
+            }
+            bind.tvFloorPage.text = "${getString(R.string.floor_loaded_n, posts.size)}$extra$more"
+            bind.tvFloorPos.text = "第 $sitePage / $siteTotalPages 页"
         }
         bind.tvFloorPos.visibility = if (posts.isEmpty()) View.GONE else View.VISIBLE
-        bind.btnPrevFloor.isEnabled = floorPage > 1
-        bind.btnNextFloor.isEnabled = floorPage < total
+        bind.btnPrevFloor.isEnabled = onlyOp && floorPage > 1
+        bind.btnNextFloor.isEnabled = if (onlyOp) floorPage < total else hasMoreSitePages && !loadingMore
+        bind.tvFloorPage.isClickable = !onlyOp && hasMoreSitePages && !loadingMore
+        bind.tvFloorPage.setOnClickListener {
+            if (!onlyOp && hasMoreSitePages && !loadingMore) loadMoreFloors()
+        }
         bind.btnOp.text = if (onlyOp) getString(R.string.see_all) else getString(R.string.only_op)
-        val alpha = if (bind.btnPrevFloor.isEnabled) 1f else 0.35f
-        bind.btnPrevFloor.alpha = alpha
+        bind.btnPrevFloor.alpha = if (bind.btnPrevFloor.isEnabled) 1f else 0.35f
         bind.btnNextFloor.alpha = if (bind.btnNextFloor.isEnabled) 1f else 0.35f
+    }
+
+    /** 「全部楼层」继续拉站点下一页并追加；成功后滚到新增楼层。 */
+    private fun loadMoreFloors() {
+        if (loadingMore || onlyOp || !hasMoreSitePages) return
+        loadingMore = true
+        renderFloorBar()
+        val next = sitePage + 1
+        lifecycleScope.launch {
+            var appended = false
+            try {
+                val (pageData, _) = repo.getThreadPage(sourceId, tid, onlyOp = false, page = next)
+                val existingFloors = posts.mapTo(HashSet()) { it.floor }
+                val added = pageData.posts.filter { it.floor !in existingFloors }
+                if (added.isNotEmpty()) {
+                    posts = posts + added
+                    sitePage = next
+                    siteTotalPages = maxOf(pageData.totalPages, next)
+                    hasMoreSitePages = sitePage < siteTotalPages
+                    appended = true
+                } else {
+                    // 站点没有更多有效楼层（或返回了重复页）
+                    siteTotalPages = maxOf(sitePage, minOf(siteTotalPages, next - 1))
+                    hasMoreSitePages = false
+                }
+            } catch (e: Exception) {
+                UiTips.snack(bind.root, getString(R.string.floor_load_failed, NetError.friendly(e)))
+            } finally {
+                loadingMore = false
+                if (appended) renderPosts(scrollToBottom = true) else renderFloorBar()
+            }
+        }
     }
 
     private fun renderFav() {

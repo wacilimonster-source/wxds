@@ -2,6 +2,8 @@
 <resources>
     <!-- 纸墨书房 · 亮色（暖纸底 + 墨色字 + 朱砂点缀） -->
     <color name="accent">#B4543E</color>
+    <!-- 深色底上的朱砂：提亮保证对话框按钮可读 -->
+    <color name="accentOnDark">#E7A184</color>
     <color name="onPrimary">#FFFFFF</color>
     <color name="accentDeep">#7E3323</color>
     <color name="accentSoft">#F5E3DC</color>

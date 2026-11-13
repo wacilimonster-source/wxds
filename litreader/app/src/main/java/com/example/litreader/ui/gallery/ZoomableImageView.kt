@@ -112,7 +112,9 @@ class ZoomableImageView @JvmOverloads constructor(
         val s = totalScale()
         matrix.reset()
         matrix.postScale(s, s)
-        matrix.preTranslate(offX, offY)
+        // offX/offY 是按“缩放后尺寸”算出的视图坐标；必须 postTranslate，
+        // 否则会被 postScale 再乘一次，双击/双指缩放后图片整体飞出可视区（黑屏）。
+        matrix.postTranslate(offX, offY)
         imageMatrix = matrix
     }
 

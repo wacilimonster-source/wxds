@@ -1,0 +1,273 @@
+name: Release
+
+# 发版入口：
+#   1) 推 tag：git tag -a v0.30 -m "更新说明" && git push origin v0.30
+#   2) Actions 页面手动运行（可填版本号/说明；首次迁移 v0.30 时勾选 publish_legacy_master）
+on:
+  push:
+    tags:
+      - 'v[0-9]*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（不要带 v），例如 0.30 或 0.30.1'
+        required: true
+        type: string
+      notes:
+        description: '更新说明（留空则读 release-notes/v<版本>.md，再读 tag 注解）'
+        required: false
+        type: string
+      publish_legacy_master:
+        description: '同时把 APK/latest.json 提交到 master 根目录（仅旧版过渡期需要）'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 34
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager --install "platforms;android-34" "build-tools;34.0.0" > /dev/null
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Resolve version and notes
+        id: ver
+        env:
+          RAW_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+          INPUT_NOTES: ${{ inputs.notes }}
+        run: |
+          set -euo pipefail
+          V="${RAW_VERSION#v}"
+          V="${V#V}"
+          if ! [[ "$V" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "::error::非法版本号：$RAW_VERSION（期望 0.30 或 0.30.1）"
+            exit 1
+          fi
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$V"
+          PATCH="${PATCH:-0}"
+          if [[ "$MAJOR" =~ ^0[0-9]+$ || "$MINOR" =~ ^0[0-9]+$ || "$PATCH" =~ ^0[0-9]+$ ]]; then
+            echo "::error::版本号各段不要有前导 0：$V"
+            exit 1
+          fi
+          CODE=$((10#$MAJOR * 10000 + 10#$MINOR * 100 + 10#$PATCH))
+
+          # 拒绝版本回退：必须高于 master 的 latest.json（防止误发 v0.1 之类的旧 tag）
+          CUR_JSON="$(git show origin/master:latest.json 2>/dev/null || true)"
+          CUR_NAME="$(printf '%s' "$CUR_JSON" | jq -r '.versionName // empty' 2>/dev/null || true)"
+          CUR_CODE="$(printf '%s' "$CUR_JSON" | jq -r '.versionCode // empty' 2>/dev/null || true)"
+          if [ -z "$CUR_CODE" ] && [ -n "$CUR_NAME" ]; then
+            IFS='.' read -r CUR_MAJOR CUR_MINOR CUR_PATCH <<< "$CUR_NAME"
+            CUR_PATCH="${CUR_PATCH:-0}"
+            CUR_CODE=$((10#$CUR_MAJOR * 10000 + 10#$CUR_MINOR * 100 + 10#$CUR_PATCH))
+          fi
+          CUR_CODE="${CUR_CODE:-0}"
+          if [ "$CODE" -le "$CUR_CODE" ]; then
+            echo "::error::版本 $V（versionCode $CODE）必须高于 master 的 ${CUR_NAME:-未知版本}（versionCode $CUR_CODE）"
+            exit 1
+          fi
+
+          # 同名 tag 已存在时必须指向当前提交，避免 Release 指向旧代码、附件却来自新构建
+          TAG="v$V"
+          if git rev-parse -q --verify "refs/tags/$TAG" > /dev/null; then
+            TAG_SHA="$(git rev-list -n 1 "$TAG")"
+            if [ "$TAG_SHA" != "$GITHUB_SHA" ]; then
+              echo "::error::tag $TAG 已存在并指向 $TAG_SHA，但当前构建提交是 $GITHUB_SHA；请换版本号或删除旧 tag"
+              exit 1
+            fi
+          fi
+
+          NOTES="$INPUT_NOTES"
+          if [ -z "$NOTES" ] && [ -f "release-notes/v$V.md" ]; then
+            NOTES="$(cat "release-notes/v$V.md")"
+          fi
+          if [ -z "$NOTES" ]; then
+            NOTES="$(git tag -l --format='%(contents)' "v$V" || true)"
+          fi
+          if [ -z "$NOTES" ]; then
+            NOTES="LitReader v$V"
+          fi
+          printf '%s\n' "$NOTES" > "$RUNNER_TEMP/notes.md"
+
+          {
+            echo "version=$V"
+            echo "version3=$MAJOR.$MINOR.$PATCH"
+            echo "code=$CODE"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "版本：$V（versionCode $CODE）"
+          echo "说明："
+          cat "$RUNNER_TEMP/notes.md"
+
+      - name: Check signing secrets
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=0
+          [ -n "$KS_B64" ] || { echo "::error::缺少 secret ANDROID_KEYSTORE_BASE64"; missing=1; }
+          [ -n "$KS_PASS" ] || { echo "::error::缺少 secret ANDROID_KEYSTORE_PASSWORD"; missing=1; }
+          [ -n "$KS_ALIAS" ] || { echo "::error::缺少 secret ANDROID_KEY_ALIAS"; missing=1; }
+          [ -n "$KEY_PASS" ] || { echo "::error::缺少 secret ANDROID_KEY_PASSWORD"; missing=1; }
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::请先在本地运行 scripts/setup-github-secrets.sh（或用仓库 Settings → Secrets 添加）"
+            exit 1
+          fi
+
+      - name: Decode keystore
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s' "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          [ -s "$RUNNER_TEMP/release.jks" ] || { echo "::error::keystore 解码失败"; exit 1; }
+
+      - name: Build signed release APK
+        env:
+          V: ${{ steps.ver.outputs.version }}
+          CODE: ${{ steps.ver.outputs.code }}
+          LITREADER_KEYSTORE_FILE: ${{ runner.temp }}/release.jks
+          LITREADER_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          LITREADER_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          LITREADER_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          chmod +x litreader/gradlew
+          cd litreader
+          ./gradlew :app:assembleRelease --no-daemon \
+            -PversionName="$V" \
+            -PversionCode="$CODE"
+
+      - name: Collect artifact
+        id: pkg
+        env:
+          V: ${{ steps.ver.outputs.version }}
+          V3: ${{ steps.ver.outputs.version3 }}
+          CODE: ${{ steps.ver.outputs.code }}
+        run: |
+          set -euo pipefail
+          APK="litreader-v$V.apk"
+          OUT="litreader/app/build/outputs/apk/release/app-release.apk"
+          mkdir -p "$RUNNER_TEMP/dist"
+          cp "$OUT" "$RUNNER_TEMP/dist/$APK"
+
+          APKSIGNER="$ANDROID_HOME/build-tools/34.0.0/apksigner"
+          AAPT="$ANDROID_HOME/build-tools/34.0.0/aapt"
+          CERT="$("$APKSIGNER" verify --print-certs "$RUNNER_TEMP/dist/$APK" \
+            | awk '/Signer #1 certificate SHA-256 digest:/ {print $NF}' | head -1)"
+          EXPECTED_CERT="e436a586cde571929d012c964d02a1cca45632abcdb662745b734ddfdb274f06"
+          if [ "$CERT" != "$EXPECTED_CERT" ]; then
+            echo "::error::签名证书不匹配：$CERT（期望 $EXPECTED_CERT）"
+            exit 1
+          fi
+
+          BADGING="$("$AAPT" dump badging "$RUNNER_TEMP/dist/$APK" | head -1)"
+          echo "$BADGING"
+          echo "$BADGING" | grep -q "versionCode='$CODE'" || { echo "::error::versionCode 注入失败"; exit 1; }
+          echo "$BADGING" | grep -q "versionName='$V'" || { echo "::error::versionName 注入失败"; exit 1; }
+
+          SHA="$(sha256sum "$RUNNER_TEMP/dist/$APK" | awk '{print $1}')"
+          APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/v$V/$APK"
+          NOTES="$(cat "$RUNNER_TEMP/notes.md")"
+          jq -n \
+            --arg versionName "$V3" \
+            --argjson versionCode "$CODE" \
+            --arg apk "$APK" \
+            --arg sha256 "$SHA" \
+            --arg apkUrl "$APK_URL" \
+            --arg notes "$NOTES" \
+            '{versionName:$versionName,versionCode:$versionCode,apk:$apk,sha256:$sha256,apkUrl:$apkUrl,notes:$notes}' \
+            > "$RUNNER_TEMP/dist/latest.json"
+
+          echo "apk=$APK" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Release v$V"
+            echo ""
+            echo "- APK: \`$APK\`"
+            echo "- SHA-256: \`$SHA\`"
+            echo "- 证书: \`$CERT\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish release branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ steps.ver.outputs.version }}
+          APK: ${{ steps.pkg.outputs.apk }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/dist"
+          git init -q
+          git checkout -q -b release
+          git add "$APK" latest.json
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -qm "release v$V"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:release
+
+          # 分支被 force-push 后主动清一次 jsDelivr 缓存，避免 latest.json 命中旧内容
+          curl -fsS --max-time 30 "https://purge.jsdelivr.net/gh/${GITHUB_REPOSITORY}@release/latest.json" > /dev/null || true
+          curl -fsS --max-time 30 "https://purge.jsdelivr.net/gh/${GITHUB_REPOSITORY}@release/$APK" > /dev/null || true
+
+      - name: Publish legacy master copy
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_legacy_master }}
+        env:
+          V: ${{ steps.ver.outputs.version }}
+          APK: ${{ steps.pkg.outputs.apk }}
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin master
+          git checkout -B master origin/master
+          cp "$RUNNER_TEMP/dist/$APK" .
+          cp "$RUNNER_TEMP/dist/latest.json" .
+          git add -f "$APK" latest.json
+          if git diff --cached --quiet; then
+            echo "master 内容无变化，跳过提交"
+            exit 0
+          fi
+          git commit -m "release: v$V（旧版过渡包）"
+          git push origin master
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: v${{ steps.ver.outputs.version }}
+          body_path: ${{ runner.temp }}/notes.md
+          files: ${{ runner.temp }}/dist/${{ steps.pkg.outputs.apk }}
+          overwrite_files: true
+          make_latest: true
