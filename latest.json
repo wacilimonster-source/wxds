@@ -1,0 +1,8 @@
+{
+  "versionName": "0.30.0",
+  "versionCode": 3000,
+  "apk": "litreader-v0.30.apk",
+  "notes": "· 新增：论坛模式「全部楼层」支持继续加载站点后续页（每页约 3 楼，可连续加载）\n· 新增：搜索输入 300ms 防抖实时出结果，无需回车\n· 优化：首轮目录同步进行中显示「正在同步目录…」，不再误导为没有目录\n· 优化：阅读器夜间主题下的正文搜索/楼层跳转对话框改为深色\n· 修复：首轮同步完成页码不更新、无限滚动 footer 通知异常、贴图阅读状态筛选无效、画廊双击缩放黑屏/浅色图工具栏不可读、跳页提示占位符、Snackbar 被底栏遮挡、搜索历史胶囊重叠、网络错误英文提示",
+  "sha256": "1b00fd93bd087f4735e44ffc242122fdc70301f84be3ee71ded02a24cee5d82d",
+  "apkUrl": "https://raw.githubusercontent.com/wacilimonster-source/wxds/release/litreader-v0.30.apk"
+}
