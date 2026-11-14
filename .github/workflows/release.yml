@@ -47,7 +47,9 @@ jobs:
           java-version: '17'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        # v3 会执行已下线的 sdkmanager tools，导致 Release workflow 在 SDK 初始化失败。
+        # v4 使用新版 cmdline-tools，支持当前 SDK repository。
+        uses: android-actions/setup-android@v4.0.4
 
       - name: Install Android SDK 34
         run: |
