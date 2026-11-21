@@ -91,4 +91,10 @@ dependencies {
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
     implementation 'androidx.viewpager2:viewpager2:1.1.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    // 影院区原生播放：ExoPlayer 核心 + HLS（m3u8，含 AES-128 分段解密）+ 默认控制层 UI
+    implementation 'androidx.media3:media3-exoplayer:1.4.1'
+    implementation 'androidx.media3:media3-exoplayer-hls:1.4.1'
+    implementation 'androidx.media3:media3-ui:1.4.1'
+    // 播放器数据源复用项目 OkHttp：统一 UA/Referer/代理，CDN 防盗链也能过
+    implementation 'androidx.media3:media3-datasource-okhttp:1.4.1'
 }

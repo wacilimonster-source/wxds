@@ -30,10 +30,20 @@
     <string name="floor_next">下一页楼层</string>
     <string name="back">返回</string>
 
+    <string name="tab_browse">浏览</string>
     <string name="tab_lit">文学</string>
     <string name="tab_img">贴图</string>
+    <string name="tab_cine">影院</string>
+    <string name="tab_tech">技术</string>
     <string name="tab_fav">书架</string>
     <string name="tab_search">搜索</string>
+    <string name="back_cd">返回</string>
+    <string name="player_resolving">正在解析视频…</string>
+    <string name="player_none">该帖子没有可播放的视频</string>
+    <string name="player_error">视频加载失败</string>
+    <string name="player_open_reader">以阅读模式打开</string>
+    <string name="player_resume_hint">已从 %1$s 继续播放</string>
+    <string name="player_part_n">第 %1$d 段</string>
     <string name="favorites_title">书架</string>
     <string name="section_recent">最近</string>
     <string name="section_fav">收藏</string>

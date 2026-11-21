@@ -37,5 +37,10 @@
         <activity android:name=".ui.detail.ThreadDetailActivity" />
         <activity android:name=".ui.reader.ReaderActivity" />
         <activity android:name=".ui.gallery.GalleryActivity" />
+        <!-- 影院区播放器：直接横屏起播；configChanges 避免旋转重建中断播放 -->
+        <activity
+            android:name=".ui.player.PlayerActivity"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden" />
     </application>
 </manifest>

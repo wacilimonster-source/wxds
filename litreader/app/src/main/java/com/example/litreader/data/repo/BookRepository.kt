@@ -39,14 +39,21 @@ class BookRepository(
         thumb = it.thumb
     )
 
-    /** 目录页落库：盖 sitePage 章 + 保护已有收藏/已读/浏览时间（否则 REPLACE 会重置）。 */
-    private suspend fun upsertItems(sourceId: String, page: Int, items: List<ThreadItem>): List<ThreadEntity> {
+    /** 目录页落库：盖 sitePage 章 + 保护已有收藏/已读/浏览时间（否则 REPLACE 会重置）。
+     *  keepSitePage=子分类视图（影院 type=）行不覆盖页章：沿用已缓存页章或 0，
+     *  否则分类页会污染「全部」视图的按页缓存。 */
+    private suspend fun upsertItems(
+        sourceId: String,
+        page: Int,
+        items: List<ThreadItem>,
+        keepSitePage: Boolean = false
+    ): List<ThreadEntity> {
         if (items.isEmpty()) return emptyList()
         val meta = db.threadDao().existingMeta(items.map { it.tid }).associateBy { it.tid }
         val ents = items.map {
             val m = meta[it.tid]
             toEntity(sourceId, it).copy(
-                sitePage = page,
+                sitePage = if (keepSitePage) m?.sitePage ?: 0 else page,
                 favorite = m?.favorite ?: false,
                 readState = m?.readState ?: 0,
                 favoriteAt = m?.favoriteAt ?: 0,
@@ -59,12 +66,17 @@ class BookRepository(
         return ents
     }
 
-    private fun rememberSitePages(sourceId: String, totalPages: Int) {
-        if (totalPages > 0) prefs?.edit()?.putInt("site_pages_$sourceId", totalPages)?.apply()
+    /** 站点总页数按「源+子分类」记（影院 type= 的页数与「全部」视图不同）。 */
+    private fun sitePagesKey(sourceId: String, category: String) =
+        if (category.isEmpty()) "site_pages_$sourceId" else "site_pages_${sourceId}_t$category"
+
+    private fun rememberSitePages(sourceId: String, totalPages: Int, category: String = "") {
+        if (totalPages > 0) prefs?.edit()?.putInt(sitePagesKey(sourceId, category), totalPages)?.apply()
     }
 
     /** 站点总页数（页脚解析值，抓取时刷新）。 */
-    fun sitePageCount(sourceId: String): Int = prefs?.getInt("site_pages_$sourceId", 0) ?: 0
+    fun sitePageCount(sourceId: String, category: String = ""): Int =
+        prefs?.getInt(sitePagesKey(sourceId, category), 0) ?: 0
 
     /** 实测有效页深（页脚值虚高：站点归档早期帖子，深页返回空壳）。0=未探测。 */
     fun validPageCount(sourceId: String): Int = prefs?.getInt("valid_pages_$sourceId", 0) ?: 0
@@ -104,11 +116,16 @@ class BookRepository(
     }
 
     /** 在线拉取一页列表并入库。 */
-    suspend fun loadList(sourceId: String, page: Int, category: String = ""): List<ThreadEntity> {
+    suspend fun loadList(
+        sourceId: String,
+        page: Int,
+        category: String = "",
+        keepSitePage: Boolean = false
+    ): List<ThreadEntity> {
         val src = source(sourceId)
         val cp = withRetry { src.getCatalogPage(page, category) }
-        rememberSitePages(sourceId, cp.totalPages)
-        return upsertItems(src.id, page, cp.items)
+        rememberSitePages(sourceId, cp.totalPages, category)
+        return upsertItems(src.id, page, cp.items, keepSitePage)
     }
 
     /** 文学区本地分页（30 条/页，目录由 syncCatalog 全量落库）。
@@ -124,12 +141,19 @@ class BookRepository(
         db.threadDao().page(sourceId, category, tag, readFilter, pageSize, (page - 1) * pageSize)
 
     /**
-     * 贴图区分页：页码与站点对齐（100 条/页）。
+     * 贴图/影院等站点页分页：页码与站点对齐（100 条/页）。
      * 本地没有该页 → 实时抓取落库；看过的页秒开、离线可回看。
      * forceRefresh 时重抓该页（upsert 自动保留收藏/已读），并清理已从站点消失的非收藏残留。
      * 本地还不知道站点总页数时也强制抓一次（自愈：否则缓存页永远拿不到页脚总页数）。
+     * 子分类（影院 type=）走服务器过滤：直接在线抓、不进按页缓存（避免与「全部」缓存串页）。
      */
-    suspend fun galleryPage(sourceId: String, page: Int, forceRefresh: Boolean = false): List<ThreadEntity> {
+    suspend fun galleryPage(
+        sourceId: String,
+        page: Int,
+        forceRefresh: Boolean = false,
+        category: String = ""
+    ): List<ThreadEntity> {
+        if (category.isNotEmpty()) return loadList(sourceId, page, category, keepSitePage = true)
         if (forceRefresh || sitePageCount(sourceId) <= 0) {
             val fresh = loadList(sourceId, page, "")
             db.threadDao().deleteStaleBySitePage(sourceId, page, fresh.map { it.tid })

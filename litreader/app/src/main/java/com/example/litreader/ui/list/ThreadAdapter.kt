@@ -73,6 +73,14 @@ class ThreadAdapter(
     private var displayed = listOf<ThreadEntity>()
     private var displayedProgress: Map<String, Float> = emptyMap()
 
+    /**
+     * 一次性回调：下次 diff 在主线程 dispatchUpdatesTo 完成后触发并自动清空。
+     * 入参 topChanged = 顶部第一条被替换（列表头部有插入/移除）。
+     * 回顶这类时序敏感操作必须等新数据真正派发：在此回调里 scrollToPosition(0)
+     * 与顶部插入落在同一次布局（pending scroll 盖过锚定），提前调用会被抢先消费。
+     */
+    var onDiffDispatched: ((topChanged: Boolean) -> Unit)? = null
+
     /** 滑动/长按回调按位置取条目（越界返回 null）。 */
     fun itemAt(position: Int): ThreadEntity? = displayed.getOrNull(position)
     private val diffScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -113,6 +121,10 @@ class ThreadAdapter(
                 val hasNow = hasFooterRow
                 if (hadFooter != hasNow) {
                     if (hasNow) notifyItemInserted(displayed.size) else notifyItemRemoved(displayed.size)
+                }
+                onDiffDispatched?.also { cb ->
+                    onDiffDispatched = null
+                    cb(old.firstOrNull()?.tid != list.firstOrNull()?.tid)
                 }
             }
         }

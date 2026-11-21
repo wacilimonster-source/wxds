@@ -98,7 +98,7 @@ class FavoritesFragment : Fragment() {
             vm.continueCandidate.value?.let { open(it) }
         }
         bind.btnEmptyAction.setOnClickListener {
-            (requireActivity() as? MainActivity)?.switchTab(R.id.tab_lit)
+            (requireActivity() as? MainActivity)?.openSection(MainActivity.SECTION_LIT)
         }
         renderSectionUi()
         renderFilterChips()
@@ -186,7 +186,7 @@ class FavoritesFragment : Fragment() {
         }
     }
 
-    /** 区筛选 chips：全部 / 文学 / 贴图（zone 持久化到 fav/zone）。 */
+    /** 区筛选 chips：全部 / 文学 / 贴图 / 影院 / 技术（zone 持久化到 fav/zone）。 */
     private fun renderFilterChips() {
         val prefs = requireActivity().getSharedPreferences("fav", Context.MODE_PRIVATE)
         val row = bind.filterRow
@@ -194,7 +194,9 @@ class FavoritesFragment : Fragment() {
         val options = listOf(
             null to getString(R.string.filter_all),
             MainActivity.SECTION_LIT to getString(R.string.tab_lit),
-            MainActivity.SECTION_IMG to getString(R.string.tab_img)
+            MainActivity.SECTION_IMG to getString(R.string.tab_img),
+            MainActivity.SECTION_CINE to getString(R.string.tab_cine),
+            MainActivity.SECTION_TECH to getString(R.string.tab_tech)
         )
         options.forEach { (value, label) ->
             val tv = TextView(requireContext(), null, 0, R.style.LitChip).apply {

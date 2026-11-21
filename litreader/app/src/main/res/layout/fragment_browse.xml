@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <!-- 四分区切换：文学 / 贴图 / 影院 / 技术。底部导航只留 3 个（BottomNavigationView 上限 5），
+         分区切换收进顶部条；禁横滑（列表行有左滑「不喜欢」手势），切区只走 tab 点击。 -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/sectionTabs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?android:attr/windowBackground"
+        app:tabMode="fixed"
+        app:tabGravity="fill"
+        app:tabIndicatorColor="@color/accent"
+        app:tabIndicatorHeight="3dp"
+        app:tabTextColor="@color/inkSecondary"
+        app:tabSelectedTextColor="@color/accent"
+        app:tabRippleColor="@color/accentSoft" />
+
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/sectionPager"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+</LinearLayout>

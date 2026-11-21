@@ -51,7 +51,7 @@ interface ThreadDao {
     @Query("SELECT tid FROM threads WHERE favorite = 1 AND tid IN (:tids)")
     suspend fun favoriteTids(tids: List<String>): List<String>
 
-    @Query("SELECT tid, favorite, readState, favoriteAt, lastOpenAt, dislike, dislikeAt FROM threads WHERE tid IN (:tids)")
+    @Query("SELECT tid, favorite, readState, favoriteAt, lastOpenAt, dislike, dislikeAt, sitePage FROM threads WHERE tid IN (:tids)")
     suspend fun existingMeta(tids: List<String>): List<TidMeta>
 
     @Query("SELECT * FROM threads WHERE sourceId = :sourceId AND sitePage = :sitePage AND dislike = 0 ORDER BY timestamp DESC")
@@ -141,8 +141,8 @@ interface ThreadDao {
 /** 标签聚合结果（Room POJO）。 */
 data class TagCount(val tag: String, val n: Int)
 
-/** 帖子标记回读（upsert 前保留收藏/已读/浏览时间/不喜欢，Room POJO）。 */
-data class TidMeta(val tid: String, val favorite: Boolean, val readState: Int, val favoriteAt: Long, val lastOpenAt: Long, val dislike: Boolean, val dislikeAt: Long)
+/** 帖子标记回读（upsert 前保留收藏/已读/浏览时间/不喜欢/页章，Room POJO）。 */
+data class TidMeta(val tid: String, val favorite: Boolean, val readState: Int, val favoriteAt: Long, val lastOpenAt: Long, val dislike: Boolean, val dislikeAt: Long, val sitePage: Int)
 
 @Dao
 interface ThreadContentDao {

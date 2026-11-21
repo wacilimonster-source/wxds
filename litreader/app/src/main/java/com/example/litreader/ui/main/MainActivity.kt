@@ -8,10 +8,10 @@ import androidx.lifecycle.lifecycleScope
 import com.example.litreader.App
 import com.example.litreader.R
 import com.example.litreader.databinding.ActivityMainBinding
+import com.example.litreader.ui.browse.BrowseFragment
 import com.example.litreader.ui.fav.FavoritesFragment
 import com.example.litreader.ui.list.CatalogSyncViewModel
 import com.example.litreader.ui.list.CatalogSyncVmFactory
-import com.example.litreader.ui.list.ThreadListFragment
 import com.example.litreader.ui.search.SearchFragment
 import com.example.litreader.util.UpdateManager
 
@@ -26,17 +26,17 @@ class MainActivity : AppCompatActivity() {
         bind.bottomNav.setOnItemSelectedListener { item ->
             com.example.litreader.util.Haptics.tick(bind.bottomNav)
             when (item.itemId) {
-                R.id.tab_lit -> { show(TAG_LIT); true }
-                R.id.tab_img -> { show(TAG_IMG); true }
+                R.id.tab_browse -> { show(TAG_BROWSE); true }
                 R.id.tab_fav -> { show(TAG_FAV); true }
                 R.id.tab_search -> { show(TAG_SEARCH); true }
                 else -> false
             }
         }
         if (savedInstanceState == null) {
-            show(TAG_LIT)
+            show(TAG_BROWSE)
             UpdateManager.checkAndPromptUpdate(this, lifecycleScope, silent = true)
         }
+        setupBackNavigation()
 
         // 每次进入 App：文学区目录增量同步（后台跑，首次为全量，不阻塞 UI）
         ViewModelProvider(
@@ -53,7 +53,7 @@ class MainActivity : AppCompatActivity() {
     private fun show(tag: String) {
         val fm = supportFragmentManager
         val tx = fm.beginTransaction()
-        listOf(TAG_LIT, TAG_IMG, TAG_FAV, TAG_SEARCH)
+        listOf(TAG_BROWSE, TAG_FAV, TAG_SEARCH)
             .mapNotNull { fm.findFragmentByTag(it) }
             .forEach { tx.hide(it) }
         val existing = fm.findFragmentByTag(tag)
@@ -62,6 +62,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             tx.add(R.id.container, create(tag), tag)
         }
+        backToBrowse?.isEnabled = tag != TAG_BROWSE
         tx.commit()
     }
 
@@ -82,18 +83,43 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** 返回键：书架/搜索页先回浏览页，浏览页再按才退出（避免误退）。 */
+    private var backToBrowse: androidx.activity.OnBackPressedCallback? = null
+
+    private fun setupBackNavigation() {
+        val callback = object : androidx.activity.OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() {
+                if (bind.bottomNav.selectedItemId != R.id.tab_browse) {
+                    bind.bottomNav.selectedItemId = R.id.tab_browse
+                } else {
+                    // 回浏览页后再按：交回系统（退出 App）
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        }
+        backToBrowse = callback
+        onBackPressedDispatcher.addCallback(this, callback)
+    }
+
     private fun create(tag: String): Fragment = when (tag) {
-        TAG_IMG -> ThreadListFragment.newInstance(SECTION_IMG)
         TAG_FAV -> FavoritesFragment()
         TAG_SEARCH -> SearchFragment()
-        else -> ThreadListFragment.newInstance(SECTION_LIT)
+        else -> BrowseFragment()
+    }
+
+    /** 跨页跳转到指定分区（书架空态「去文学看看」等）：切浏览页签并选中分区。 */
+    fun openSection(sectionId: String) {
+        switchTab(R.id.tab_browse)
+        (supportFragmentManager.findFragmentByTag(TAG_BROWSE) as? BrowseFragment)?.select(sectionId)
     }
 
     companion object {
         const val SECTION_LIT = "t66y_lit"
         const val SECTION_IMG = "t66y_img"
-        private const val TAG_LIT = "lit"
-        private const val TAG_IMG = "img"
+        const val SECTION_CINE = "t66y_cine"
+        const val SECTION_TECH = "t66y_tech"
+        private const val TAG_BROWSE = "browse"
         private const val TAG_FAV = "fav"
         private const val TAG_SEARCH = "search"
     }

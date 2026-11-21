@@ -28,7 +28,8 @@ class ThreadListViewModel(
     private val sourceId: String
 ) : ViewModel() {
     private val source = SourceRegistry.get(sourceId) ?: SourceRegistry.first()
-    private val isImage = source.style == SourceStyle.IMAGE
+    /** 站点页模式（贴图/影院/技术）：按需抓取站点页；文学区=TEXT 走本地目录同步。 */
+    private val sitePageMode = source.style != SourceStyle.TEXT
 
     private val _threads = MutableLiveData<List<ThreadEntity>>()
     val threads: LiveData<List<ThreadEntity>> = _threads
@@ -65,9 +66,9 @@ class ThreadListViewModel(
     var noMore = false
         private set
 
-    /** 总页数是否已知（贴图站点页数未取得前禁用跳页提交）。 */
+    /** 总页数是否已知（站点页数未取得前禁用跳页提交）。 */
     val totalKnown: Boolean
-        get() = !isImage || siteTotalPages > 0 || validPages > 0
+        get() = !sitePageMode || siteTotalPages > 0 || validPages > 0
 
     /** 标记写入与撤销（快照+版本，见 MarkOps 契约）。 */
     val markOps = MarkOps(repo)
@@ -104,10 +105,11 @@ class ThreadListViewModel(
     /** 标签聚合只在首次/目录同步后重查；切筛选或翻页时复用，省一次 GROUP BY。 */
     private var tagsLoaded = false
 
-    /** 文学区 30 条/页（本地目录）；贴图区 100 条/页（与站点页对齐，有效页深以探测值为准）。 */
+    /** 文学区 30 条/页（本地目录）；站点页区 100 条/页（与站点页对齐）。
+     *  有效页深按「全部」视图探测，子分类视图页数页脚现值不做探测封顶。 */
     val totalPages: Int
-        get() = if (isImage) {
-            val cap = if (validPages in 1 until siteTotalPages) validPages else siteTotalPages
+        get() = if (sitePageMode) {
+            val cap = if (category.isEmpty() && validPages in 1 until siteTotalPages) validPages else siteTotalPages
             max(cap, page)
         }
         else if (totalCount == 0) 1
@@ -130,14 +132,14 @@ class ThreadListViewModel(
         loadJob = viewModelScope.launch {
             try {
                 var list = fetch(target, force)
-                if (isImage && list.isEmpty() && target > 1) {
+                if (sitePageMode && list.isEmpty() && target > 1) {
                     // 站点页脚总页数虚高（早期帖子已归档，深页返回空壳）：
                     // 先强制重抓一次防瞬时抖动，仍空则二分探测最大有效页并回退
-                    list = repo.galleryPage(sourceId, target, forceRefresh = true)
+                    list = repo.galleryPage(sourceId, target, forceRefresh = true, category = category)
                     if (list.isEmpty()) {
                         val valid = repo.probeValidPages(sourceId, minOf(prevPage, target - 1), target)
                         repo.saveValidPages(sourceId, valid)
-                        list = repo.galleryPage(sourceId, valid)
+                        list = repo.galleryPage(sourceId, valid, category = category)
                         _archivedNotice.value = valid
                         if (reqId == requestId) this@ThreadListViewModel.page = valid
                     }
@@ -151,8 +153,8 @@ class ThreadListViewModel(
                 val shown = filtered()
                 _threads.value = shown
                 _emptyReason.value = emptyReasonFor(shown)
-                if (isImage) {
-                    siteTotalPages = repo.sitePageCount(sourceId)
+                if (sitePageMode) {
+                    siteTotalPages = repo.sitePageCount(sourceId, category)
                     validPages = repo.validPageCount(sourceId)
                     _tags.value = emptyList()
                 } else {
@@ -214,9 +216,9 @@ class ThreadListViewModel(
         loadMore()
     }
 
-    /** 贴图/文学共用的取页入口。 */
+    /** 贴图/影院/技术共用的取页入口。 */
     private suspend fun fetch(target: Int, force: Boolean = false): List<ThreadEntity> =
-        if (isImage) repo.galleryPage(sourceId, target, force)
+        if (sitePageMode) repo.galleryPage(sourceId, target, force, category)
         else repo.page(sourceId, target, BookRepository.PAGE_SIZE, category, tag, readFilter)
 
     /**
@@ -247,8 +249,8 @@ class ThreadListViewModel(
         _loading.value = true
         viewModelScope.launch {
             try {
-                val all = if (isImage) {
-                    range.flatMap { repo.galleryPage(sourceId, it) }
+                val all = if (sitePageMode) {
+                    range.flatMap { repo.galleryPage(sourceId, it, category = category) }
                 } else {
                     repo.page(sourceId, range.first, (range.last - range.first + 1) * BookRepository.PAGE_SIZE, category, tag, readFilter)
                 }
@@ -258,7 +260,7 @@ class ThreadListViewModel(
                 val shown = filtered()
                 _threads.value = shown
                 _emptyReason.value = emptyReasonFor(shown)
-                if (!isImage) {
+                if (!sitePageMode) {
                     // 目录同步完成后首屏可能仍停留在“共 1 页”：这里必须重算总条数，
                     // 否则页码/跳页/无限滚动会一直按同步前的空目录计算。
                     totalCount = repo.categoryCount(sourceId, category, tag, readFilter)
@@ -320,7 +322,7 @@ class ThreadListViewModel(
     }
 
     fun refresh() {
-        load(1, force = isImage)
+        load(1, force = sitePageMode)
     }
 
     // ---- 条目操作（更多菜单/收藏按钮/左滑）：绝对 setter + 快照撤销 ----
@@ -390,7 +392,7 @@ class ThreadListViewModel(
         if (rows.isNotEmpty()) return null
         return when {
             readFilter != -1 || tag.isNotEmpty() -> EmptyReason.FILTERED
-            isImage -> EmptyReason.NETWORK  // 贴图：无缓存条目
+            sitePageMode -> EmptyReason.NETWORK  // 站点页区：无缓存条目
             else -> EmptyReason.NO_CATALOG  // 文学：目录未同步
         }
     }

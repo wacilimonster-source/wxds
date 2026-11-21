@@ -187,14 +187,16 @@ class SearchFragment : Fragment() {
         }
     }
 
-    /** 区筛选 chips：全部 / 文学 / 贴图（统一胶囊规格，选择持久化）。 */
+    /** 区筛选 chips：全部 / 文学 / 贴图 / 影院 / 技术（统一胶囊规格，选择持久化）。 */
     private fun renderZoneChips() {
         val row = bind.zoneRow
         row.removeAllViews()
         val options = listOf(
             null to getString(R.string.filter_all),
             com.example.litreader.ui.main.MainActivity.SECTION_LIT to getString(R.string.tab_lit),
-            com.example.litreader.ui.main.MainActivity.SECTION_IMG to getString(R.string.tab_img)
+            com.example.litreader.ui.main.MainActivity.SECTION_IMG to getString(R.string.tab_img),
+            com.example.litreader.ui.main.MainActivity.SECTION_CINE to getString(R.string.tab_cine),
+            com.example.litreader.ui.main.MainActivity.SECTION_TECH to getString(R.string.tab_tech)
         )
         options.forEach { (value, label) ->
             val tv = TextView(requireContext(), null, 0, R.style.LitChip).apply {

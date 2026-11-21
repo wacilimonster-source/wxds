@@ -23,6 +23,7 @@ import com.example.litreader.R
 import com.example.litreader.data.db.TagCount
 import com.example.litreader.data.db.ThreadEntity
 import com.example.litreader.data.repo.MarkSnapshot
+import com.example.litreader.data.source.BookSource
 import com.example.litreader.data.source.SourceRegistry
 import com.example.litreader.data.source.SourceStyle
 import com.example.litreader.databinding.FragmentListBinding
@@ -41,9 +42,12 @@ class ThreadListFragment : Fragment() {
     private lateinit var bind: FragmentListBinding
     private lateinit var vm: ThreadListViewModel
     private lateinit var adapter: ThreadAdapter
+    private lateinit var source: BookSource
     private var sourceId: String = ""
     private var syncVm: CatalogSyncViewModel? = null
     private var lastObservedRunning: Boolean? = null
+    /** 同步结束后回顶：等 threads 首次发布且 diff 派发完成再执行（见 ThreadAdapter.onDiffDispatched）。 */
+    private var jumpTopAfterSync = false
     /** 首轮目录同步是否进行中：空列表时展示「同步中」而不是误导性的「还没有本地目录」。 */
     private var syncRunning = false
     private var isText = false
@@ -52,6 +56,11 @@ class ThreadListFragment : Fragment() {
     /** 标签 chips 只在数据或选中项变化时重建，避免每次筛选都销毁重造一批 TextView。 */
     private var renderedTags: List<TagCount>? = null
     private var renderedTag = ""
+    /** 影院区子分类 chips 的选中缓存（type= id）。 */
+    private var renderedCategory = ""
+    /** 懒加载模式（浏览页分区）：未激活前不请求，避免首屏四区并发抓取。 */
+    private var lazyMode = false
+    private var activated = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,7 +77,8 @@ class ThreadListFragment : Fragment() {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        val source = SourceRegistry.get(sourceId) ?: SourceRegistry.first()
+        source = SourceRegistry.get(sourceId) ?: SourceRegistry.first()
+        lazyMode = arguments?.getBoolean(ARG_LAZY) ?: false
         bind.tvTitle.text = source.name
 
         vm = ViewModelProvider(
@@ -141,6 +151,13 @@ class ThreadListFragment : Fragment() {
 
         vm.threads.observe(viewLifecycleOwner) { list ->
             adapter.submit(list, progressMap)
+            // 同步结束后的首次发布：随同一帧 diff 派发回顶——pending scroll 与顶部插入
+            // 落在同一次布局才能盖过锚定；0 新增（顶部条目未变）则保持原位不打扰
+            val jump = jumpTopAfterSync
+            jumpTopAfterSync = false
+            adapter.onDiffDispatched = if (jump) { topChanged ->
+                if (topChanged) bind.recycler.scrollToPosition(0)
+            } else null
             renderEmpty()
             renderPageLabel()
             updateFooter()
@@ -182,6 +199,22 @@ class ThreadListFragment : Fragment() {
             }
         }
 
+        if (lazyMode) {
+            // 先展示骨架，等浏览页切到本分区再真正请求
+            Skeleton.show(bind.skeleton.root)
+        } else {
+            vm.load(1)
+        }
+    }
+
+    /** 浏览页据此把「切到该分区」的激活信号发给对应列表。 */
+    fun sectionId(): String = sourceId
+
+    /** 浏览页切到本分区时调用（懒加载分区首次可见才请求）。 */
+    fun activate() {
+        if (activated) return
+        activated = true
+        if (!this::vm.isInitialized) return
         vm.load(1)
     }
 
@@ -308,9 +341,11 @@ class ThreadListFragment : Fragment() {
                         bind.root, getString(R.string.sync_failed_cached, st.error), anchor = bind.tvPage
                     )
                 }
+                jumpTopAfterSync = true
                 vm.reloadLoadedPages()
             } else if (lastObservedRunning == null && st.error == null) {
                 // 进入页面时同步已完成（粘性状态）→ 直接读一次库
+                jumpTopAfterSync = true
                 vm.reloadLoadedPages()
             }
         }
@@ -318,8 +353,25 @@ class ThreadListFragment : Fragment() {
         if (vm.threads.value.isNullOrEmpty()) renderEmpty()
     }
 
-    /** 标签筛选 chips：全部 + 目录里实际出现的标签（带数量），触摸高 48dp。 */
+    /** 标签筛选 chips：影院区=站点子分类（type=，服务器过滤）；其余=目录标签聚合（文学，带数量）。 */
     private fun renderTags(counts: List<TagCount>) {
+        if (source.style == SourceStyle.VIDEO && source.categories.size > 1) {
+            if (renderedTags != null && vm.category == renderedCategory) return
+            renderedTags = emptyList()
+            renderedCategory = vm.category
+            bind.tagBar.visibility = View.VISIBLE
+            val row = bind.tagRow
+            row.removeAllViews()
+            source.categories.forEach { (id, label) ->
+                addChip(row, label, vm.category == id) {
+                    if (vm.category != id) {
+                        vm.load(1, id)
+                        renderTags(vm.tags.value.orEmpty())
+                    }
+                }
+            }
+            return
+        }
         if (counts == renderedTags && vm.tag == renderedTag) return
         renderedTags = counts
         renderedTag = vm.tag
@@ -565,13 +617,17 @@ class ThreadListFragment : Fragment() {
 
     companion object {
         private const val ARG_SOURCE = "sourceId"
+        private const val ARG_LAZY = "lazy"
         private const val MENU_VERSION = 1
         private const val MENU_REFRESH = 2
         private const val MENU_CHECK_UPDATE = 3
         private const val MENU_CRASH_LOGS = 4
         private const val MENU_KEYWORDS = 5
-        fun newInstance(sourceId: String) = ThreadListFragment().apply {
-            arguments = Bundle().apply { putString(ARG_SOURCE, sourceId) }
+        fun newInstance(sourceId: String, lazy: Boolean = false) = ThreadListFragment().apply {
+            arguments = Bundle().apply {
+                putString(ARG_SOURCE, sourceId)
+                putBoolean(ARG_LAZY, lazy)
+            }
         }
     }
 }
