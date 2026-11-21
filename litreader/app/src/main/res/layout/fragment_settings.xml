@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:background="@color/bgPaper"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- 页面标题：设置项全部从列表页「更多」菜单迁入，刷新改走下拉刷新 -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/settings_title"
+        android:textColor="@color/inkPrimary"
+        android:textSize="24sp"
+        android:fontFamily="serif"
+        android:textStyle="bold"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="6dp" />
+
+    <!-- 关键词屏蔽：按分区管理（复用 KeywordSheet） -->
+    <LinearLayout
+        android:id="@+id/rowKeywords"
+        android:orientation="vertical"
+        android:background="?attr/selectableItemBackground"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/keyword_block"
+            android:textColor="@color/inkPrimary"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/tvKeywordsSub"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_keywords_sub_none"
+            android:textColor="@color/inkSecondary"
+            android:textSize="12sp"
+            android:layout_marginTop="3dp" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginStart="20dp"
+        android:background="@color/divider" />
+
+    <!-- 检查更新 -->
+    <LinearLayout
+        android:id="@+id/rowUpdate"
+        android:orientation="vertical"
+        android:background="?attr/selectableItemBackground"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/check_update"
+            android:textColor="@color/inkPrimary"
+            android:textSize="15sp" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginStart="20dp"
+        android:background="@color/divider" />
+
+    <!-- 崩溃日志 -->
+    <LinearLayout
+        android:id="@+id/rowCrash"
+        android:orientation="vertical"
+        android:background="?attr/selectableItemBackground"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/crash_logs"
+            android:textColor="@color/inkPrimary"
+            android:textSize="15sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/crash_logs_empty"
+            android:textColor="@color/inkSecondary"
+            android:textSize="12sp"
+            android:layout_marginTop="3dp" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginStart="20dp"
+        android:background="@color/divider" />
+
+    <!-- 版本（不可点） -->
+    <LinearLayout
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:id="@+id/tvVersion"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/inkPrimary"
+            android:textSize="15sp" />
+    </LinearLayout>
+</LinearLayout>

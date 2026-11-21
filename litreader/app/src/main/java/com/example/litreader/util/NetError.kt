@@ -18,11 +18,16 @@ object NetError {
                 is ConnectException -> return "连接服务器失败"
                 // 证书/主机名校验失败：多为代理或运营商劫持，重试或换网络即可
                 is SSLException -> return "网络被拦截（证书校验失败），请重试或更换网络"
-                is HttpStatusException -> return when (e.code) {
-                    401, 403 -> "视频服务器拒绝访问（HTTP ${e.code}），请重试或更换网络"
-                    404, 410 -> "视频不存在或已下架（HTTP ${e.code}）"
-                    in 500..599 -> "视频服务器暂时不可用（HTTP ${e.code}），请稍后重试"
-                    else -> "服务器返回异常（HTTP ${e.code}），请重试"
+                is HttpStatusException -> {
+                    // 带上域名便于远程定位（是站点、CDN 还是劫持机在拒绝）
+                    val host = runCatching { java.net.URI(e.url).host }.getOrNull().orEmpty()
+                    val at = if (host.isNotEmpty()) " · $host" else ""
+                    return when (e.code) {
+                        401, 403 -> "视频服务器拒绝访问（HTTP ${e.code}$at），请重试或更换网络"
+                        404, 410 -> "视频不存在或已下架（HTTP ${e.code}$at）"
+                        in 500..599 -> "视频服务器暂时不可用（HTTP ${e.code}$at），请稍后重试"
+                        else -> "服务器返回异常（HTTP ${e.code}$at），请重试"
+                    }
                 }
             }
             cur = cur?.cause

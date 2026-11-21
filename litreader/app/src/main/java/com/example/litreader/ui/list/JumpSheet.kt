@@ -50,7 +50,8 @@ class JumpSheet : BottomSheetDialogFragment() {
         val root = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(16), dp(20), dp(20))
-            background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
+            // 与筛选/关键词面板同一卡片底板，统一弹层观感
+            background = androidx.core.content.ContextCompat.getDrawable(ctx, R.drawable.bg_sheet_top)
         }
 
         // 标题行：跳转到页 · 共 N 页 / 总页数获取中

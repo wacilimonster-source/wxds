@@ -29,6 +29,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.tab_browse -> { show(TAG_BROWSE); true }
                 R.id.tab_fav -> { show(TAG_FAV); true }
                 R.id.tab_search -> { show(TAG_SEARCH); true }
+                R.id.tab_settings -> { show(TAG_SETTINGS); true }
                 else -> false
             }
         }
@@ -53,7 +54,7 @@ class MainActivity : AppCompatActivity() {
     private fun show(tag: String) {
         val fm = supportFragmentManager
         val tx = fm.beginTransaction()
-        listOf(TAG_BROWSE, TAG_FAV, TAG_SEARCH)
+        listOf(TAG_BROWSE, TAG_FAV, TAG_SEARCH, TAG_SETTINGS)
             .mapNotNull { fm.findFragmentByTag(it) }
             .forEach { tx.hide(it) }
         val existing = fm.findFragmentByTag(tag)
@@ -64,15 +65,6 @@ class MainActivity : AppCompatActivity() {
         }
         backToBrowse?.isEnabled = tag != TAG_BROWSE
         tx.commit()
-    }
-
-    /** 列表页放大镜入口：切到搜索页签并附带当前来源；focus=true 时聚焦输入框并弹键盘。 */
-    fun openSearch(sourceId: String, focus: Boolean) {
-        switchTab(R.id.tab_search)
-        (supportFragmentManager.findFragmentByTag(TAG_SEARCH) as? SearchFragment)?.apply {
-            presetSource(sourceId)
-            if (focus) focusInput()
-        }
     }
 
     /** 供空态行动按钮等跨页签跳转使用（幂等：已在目标页签则不动）。 */
@@ -105,6 +97,7 @@ class MainActivity : AppCompatActivity() {
     private fun create(tag: String): Fragment = when (tag) {
         TAG_FAV -> FavoritesFragment()
         TAG_SEARCH -> SearchFragment()
+        TAG_SETTINGS -> com.example.litreader.ui.settings.SettingsFragment()
         else -> BrowseFragment()
     }
 
@@ -122,5 +115,6 @@ class MainActivity : AppCompatActivity() {
         private const val TAG_BROWSE = "browse"
         private const val TAG_FAV = "fav"
         private const val TAG_SEARCH = "search"
+        private const val TAG_SETTINGS = "settings"
     }
 }

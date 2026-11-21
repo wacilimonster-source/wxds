@@ -37,6 +37,11 @@
     <string name="tab_tech">技术</string>
     <string name="tab_fav">书架</string>
     <string name="tab_search">搜索</string>
+    <string name="tab_settings">设置</string>
+    <string name="settings_title">设置</string>
+    <string name="settings_keywords_sub_none">还没有屏蔽词，命中标题关键词的帖子将不在列表显示</string>
+    <string name="settings_keywords_sub_n">已屏蔽 %1$d 个关键词，命中标题的帖子将不在列表显示</string>
+    <string name="settings_pick_section">选择要管理的分区</string>
     <string name="back_cd">返回</string>
     <string name="player_resolving">正在解析视频…</string>
     <string name="player_none">该帖子没有可播放的视频</string>
@@ -111,7 +116,6 @@
     <string name="item_unfavorite_cd">取消收藏</string>
     <string name="item_dislike_cd">不喜欢</string>
     <string name="item_undislike_cd">取消不喜欢</string>
-    <string name="thumb_retry">重试</string>
     <string name="menu_act_fav">收藏</string>
     <string name="menu_act_unfav">取消收藏</string>
     <string name="menu_act_dislike">不喜欢</string>

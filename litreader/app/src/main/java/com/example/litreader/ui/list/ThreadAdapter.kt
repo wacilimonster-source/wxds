@@ -5,7 +5,6 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageView
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.widget.TextViewCompat
@@ -16,7 +15,6 @@ import com.example.litreader.data.db.ThreadEntity
 import com.example.litreader.data.source.SourceRegistry
 import com.example.litreader.databinding.ItemListFooterBinding
 import com.example.litreader.databinding.ItemThreadBinding
-import com.example.litreader.util.ThumbLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -39,8 +37,6 @@ class ThreadAdapter(
     private val onDislike: (ThreadEntity) -> Unit = {},
     /** 搜索结果等跨区场景下，在条目里标注所属区 */
     private val showSection: Boolean = false,
-    /** 贴图列表才显示首图缩略（文学列表与搜索结果保持纯文字规格） */
-    private val showThumb: Boolean = false,
     /** 启用列表尾部状态行（仅列表页） */
     private val withFooter: Boolean = false,
     /** 尾部重试点击（仅 withFooter 时生效） */
@@ -276,7 +272,6 @@ class ThreadAdapter(
             if (t.dislike) R.string.item_undislike_cd else R.string.item_dislike_cd
         )
 
-        bindThumb(h, t)
         // 复用视图可能停在被按下的缩放态；复位只在实际缩放过时执行
         if (h.b.root.scaleX != 1f || h.b.root.scaleY != 1f) {
             h.b.root.scaleX = 1f
@@ -290,64 +285,6 @@ class ThreadAdapter(
         val icon = ContextCompat.getDrawable(ctx, if (finished) R.drawable.ic_read_check else R.drawable.read_dot)
             ?.mutate()?.also { DrawableCompat.setTint(it, color) }
         TextViewCompat.setCompoundDrawablesRelativeWithIntrinsicBounds(h.b.tvReadMark, icon, null, null, null)
-    }
-
-    /** 贴图 72dp 缩略：无图图标占位，失败显示可见重试；加载策略沿用 ThumbLoader 缓存。 */
-    private fun bindThumb(h: VH, t: ThreadEntity) {
-        val wrap = h.b.thumbWrap
-        if (!showThumb) {
-            (h.b.imgThumb.getTag(R.id.thumbJob) as? Job)?.cancel()
-            wrap.visibility = View.GONE
-            return
-        }
-        wrap.visibility = View.VISIBLE
-        val iv = h.b.imgThumb
-        val placeholder = h.b.thumbPlaceholder
-        val retry = h.b.thumbRetry
-        retry.setOnClickListener { v ->
-            v.visibility = View.GONE
-            placeholderIconOnly(h)
-            t.thumb.takeIf { it.isNotEmpty() }?.let { loadThumb(h, it) }
-        }
-        if (t.thumb.isEmpty()) {
-            (iv.getTag(R.id.thumbJob) as? Job)?.cancel()
-            iv.setImageDrawable(null)
-            iv.alpha = 1f
-            placeholder.visibility = View.VISIBLE
-            h.b.thumbPlaceholderIcon.visibility = View.VISIBLE
-            retry.visibility = View.GONE
-            return
-        }
-        placeholderIconOnly(h)
-        loadThumb(h, t.thumb)
-    }
-
-    /** 占位层必须可见：它覆盖在缩略图之上，加载成功后要整层隐藏才能露出图片。 */
-    private fun placeholderIconOnly(h: VH) {
-        h.b.imgThumb.setImageDrawable(null)
-        h.b.imgThumb.alpha = 1f
-        h.b.thumbPlaceholder.visibility = View.VISIBLE
-        h.b.thumbPlaceholderIcon.visibility = View.VISIBLE
-        h.b.thumbRetry.visibility = View.GONE
-    }
-
-    private fun loadThumb(h: VH, url: String) {
-        val iv: ImageView = h.b.imgThumb
-        iv.alpha = 0f
-        h.b.thumbPlaceholder.visibility = View.VISIBLE
-        h.b.thumbPlaceholderIcon.visibility = View.VISIBLE
-        h.b.thumbRetry.visibility = View.GONE
-        ThumbLoader.load(url, iv) { ok ->
-            if (ok) {
-                h.b.thumbPlaceholder.visibility = View.GONE
-            } else {
-                iv.setImageDrawable(null)
-                iv.alpha = 1f
-                h.b.thumbPlaceholder.visibility = View.VISIBLE
-                h.b.thumbPlaceholderIcon.visibility = View.VISIBLE
-                h.b.thumbRetry.visibility = View.VISIBLE
-            }
-        }
     }
 
     /** '157'→157、'3.4K'→3400；'2 小時' 这类时间文本与空串视作 0（不展示）。 */

@@ -1,58 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
     android:background="@color/bgPaper"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- 固定顶栏：56dp 起，页面标题 + 搜索 + 更多（刷新收进更多） -->
-    <LinearLayout
-        android:id="@+id/titleRow"
-        android:gravity="center_vertical"
-        android:paddingStart="20dp"
-        android:paddingEnd="8dp"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:minHeight="56dp">
-
-        <TextView
-            android:id="@+id/tvTitle"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="wrap_content"
-            android:textColor="@color/inkPrimary"
-            android:textSize="24sp"
-            android:fontFamily="serif"
-            android:textStyle="bold"
-            android:maxLines="1"
-            android:ellipsize="end" />
-
-        <ImageButton
-            android:id="@+id/btnSearch"
-            android:contentDescription="@string/search"
-            android:src="@drawable/ic_search"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            app:tint="@color/inkSecondary" />
-
-        <ImageButton
-            android:id="@+id/btnMore"
-            android:contentDescription="@string/more"
-            android:src="@drawable/ic_more"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            app:tint="@color/inkSecondary" />
-    </LinearLayout>
-
-    <!-- 标签横向滚动 + 筛选入口（阅读状态收进筛选面板，显式应用） -->
+    <!-- 顶栏：分区名已由浏览页顶部 Tab 区分，不再重复标题行（省 56dp）；
+         刷新只走下拉刷新，设置/关键词/检查更新/崩溃日志收进底部导航「设置」页 -->
     <LinearLayout
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingStart="20dp"
         android:paddingEnd="8dp"
+        android:paddingTop="10dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 

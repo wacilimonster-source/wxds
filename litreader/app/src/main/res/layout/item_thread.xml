@@ -23,66 +23,12 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
-        <!-- 贴图缩略 72dp：无图占位图标，失败显示重试（仅贴图列表可见） -->
-        <FrameLayout
-            android:id="@+id/thumbWrap"
-            android:visibility="gone"
-            android:layout_marginStart="0dp"
-            android:layout_marginEnd="12dp"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent"
-            android:layout_width="72dp"
-            android:layout_height="72dp">
-
-            <com.google.android.material.imageview.ShapeableImageView
-                android:id="@+id/imgThumb"
-                android:importantForAccessibility="no"
-                android:scaleType="centerCrop"
-                android:background="@color/bgPaper"
-                app:shapeAppearanceOverlay="@style/ThumbShape"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent" />
-
-            <!-- 无图/加载失败占位：图标 + 可见重试入口（状态不只靠颜色） -->
-            <LinearLayout
-                android:id="@+id/thumbPlaceholder"
-                android:orientation="vertical"
-                android:gravity="center"
-                android:background="@color/bgPaper"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent">
-
-                <ImageView
-                    android:id="@+id/thumbPlaceholderIcon"
-                    android:src="@drawable/ic_image"
-                    android:importantForAccessibility="no"
-                    android:alpha="0.5"
-                    app:tint="@color/ink3"
-                    android:layout_width="22dp"
-                    android:layout_height="22dp" />
-
-                <TextView
-                    android:id="@+id/thumbRetry"
-                    android:text="@string/thumb_retry"
-                    android:textSize="12sp"
-                    android:textColor="@color/accent"
-                    android:background="?attr/selectableItemBackground"
-                    android:paddingStart="10dp"
-                    android:paddingEnd="10dp"
-                    android:paddingTop="4dp"
-                    android:paddingBottom="4dp"
-                    android:visibility="gone"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
-            </LinearLayout>
-        </FrameLayout>
-
-        <!-- 文本主体：标题 17sp 最多两行，元信息 12sp；短标题卡垂直居中 -->
+        <!-- 文本主体：标题 17sp 最多两行，元信息 12sp；短标题卡垂直居中。
+             贴图缩略已移除：站点列表页不再输出首图，占位无意义（经用户确认） -->
         <LinearLayout
             android:id="@+id/cbody"
             android:orientation="vertical"
-            app:layout_constraintStart_toEndOf="@id/thumbWrap"
+            app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@id/actionDivider"

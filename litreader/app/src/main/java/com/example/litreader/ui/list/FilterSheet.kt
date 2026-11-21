@@ -12,13 +12,13 @@ import com.example.litreader.util.Haptics
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
 /**
- * 阅读状态筛选面板：草稿与应用分离——
- * 面板内只改 draft，取消/遮罩关闭丢弃草稿；「应用筛选」经回调写回 VM 并回第一页。
- * 「重置」只重置面板内阅读状态（不重置标签）。
+ * 阅读状态筛选面板（重设计）：卡片式弹层 + 2×2 选项胶囊 + 底部双按钮。
+ * 草稿与应用分离——面板内只改 draft，取消/遮罩关闭丢弃草稿；
+ * 「应用筛选」经回调写回 VM 并回第一页；「重置」只重置面板内阅读状态。
  */
 class FilterSheet : BottomSheetDialogFragment() {
 
-    private data class Option(val value: Int, val label: String, val row: TextView)
+    private data class Option(val value: Int, val label: String, val view: TextView)
 
     private var applied: Int = -1
     private var draft: Int = -1
@@ -38,46 +38,59 @@ class FilterSheet : BottomSheetDialogFragment() {
     ): View {
         val ctx = requireContext()
         val dp = { v: Int -> (v * resources.displayMetrics.density).toInt() }
-        val colorInk = androidx.core.content.ContextCompat.getColor(ctx, R.color.inkPrimary)
-        val colorOn = androidx.core.content.ContextCompat.getColor(ctx, R.color.onPrimary)
 
         val root = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(18), dp(20), dp(20))
-            background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
+            background = androidx.core.content.ContextCompat.getDrawable(ctx, R.drawable.bg_sheet_top)
+            setPadding(dp(24), dp(12), dp(24), dp(24))
         }
+
+        // 顶部拖拽条：细圆角横条，提示可下拉关闭
+        val grabber = View(ctx).apply {
+            background = androidx.core.content.ContextCompat.getDrawable(ctx, R.drawable.bg_filter_row)
+        }
+        root.addView(grabber, LinearLayout.LayoutParams(dp(36), dp(4)).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+        })
 
         root.addView(TextView(ctx).apply {
             text = getString(R.string.filter_sheet_title)
-            textSize = 15f
-            setTextColor(colorInk)
+            textSize = 17f
+            setTextColor(androidx.core.content.ContextCompat.getColor(ctx, R.color.inkPrimary))
             typeface = android.graphics.Typeface.DEFAULT_BOLD
-        })
+        }, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(14) })
 
-        // 候选行：选中项带 ✓ 与填充底（非仅颜色区分），触摸高 48dp
+        // 2×2 选项胶囊：描边底 → 选中 soft 填充（isSelected 驱动），✓ 前缀不只靠颜色
         val candidates = listOf(
             -1 to getString(R.string.filter_all),
             0 to getString(R.string.filter_unread),
             1 to getString(R.string.read_opened),
             2 to getString(R.string.filter_finished)
         )
-        options = candidates.map { (value, label) ->
-            val row = TextView(ctx).apply {
-                textSize = 14f
-                gravity = Gravity.CENTER_VERTICAL
-                minHeight = dp(48)
-                setOnClickListener {
-                    Haptics.tick(this)
-                    draft = value
-                    render()
+        options = candidates.chunked(2).flatMap { pair ->
+            val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+            val created = pair.map { (value, label) ->
+                val tv = TextView(ctx, null, 0, R.style.LitChip).apply {
+                    textSize = 14f
+                    gravity = Gravity.CENTER
+                    setOnClickListener {
+                        Haptics.tick(this)
+                        draft = value
+                        render()
+                    }
                 }
+                row.addView(tv, LinearLayout.LayoutParams(0, dp(44), 1f).apply {
+                    marginEnd = dp(10)
+                })
+                Option(value, label, tv)
             }
             root.addView(row, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(8) })
-            Option(value, label, row)
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(12) })
+            created
         }
-        render()
 
         // 底部操作：重置（仅面板内阅读状态）+ 应用筛选
         val actions = LinearLayout(ctx).apply {
@@ -87,8 +100,8 @@ class FilterSheet : BottomSheetDialogFragment() {
         val reset = TextView(ctx).apply {
             text = getString(R.string.filter_reset)
             textSize = 14f
+            setTextColor(androidx.core.content.ContextCompat.getColor(ctx, R.color.inkSecondary))
             gravity = Gravity.CENTER
-            minHeight = dp(48)
             background = androidx.core.content.ContextCompat.getDrawable(ctx, R.drawable.bg_filter_row)
             setOnClickListener {
                 Haptics.tick(this)
@@ -99,9 +112,8 @@ class FilterSheet : BottomSheetDialogFragment() {
         val apply = TextView(ctx).apply {
             text = getString(R.string.filter_apply)
             textSize = 14f
-            setTextColor(colorOn)
+            setTextColor(androidx.core.content.ContextCompat.getColor(ctx, R.color.onPrimary))
             gravity = Gravity.CENTER
-            minHeight = dp(48)
             background = androidx.core.content.ContextCompat.getDrawable(ctx, R.drawable.bg_btn_accent)
             setOnClickListener {
                 Haptics.tick(this)
@@ -109,12 +121,13 @@ class FilterSheet : BottomSheetDialogFragment() {
                 dismiss()
             }
         }
-        actions.addView(reset, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(10) })
-        actions.addView(apply, LinearLayout.LayoutParams(0, dp(48), 1f))
+        actions.addView(reset, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(10) })
+        actions.addView(apply, LinearLayout.LayoutParams(0, dp(46), 1f))
         root.addView(actions, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(16) })
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(20) })
 
+        render()
         return root
     }
 
@@ -123,15 +136,8 @@ class FilterSheet : BottomSheetDialogFragment() {
         val mark = getString(R.string.filter_selected_mark)
         options.forEach { o ->
             val selected = o.value == draft
-            o.row.text = if (selected) "$mark ${o.label}" else o.label
-            o.row.setTextColor(
-                androidx.core.content.ContextCompat.getColor(
-                    requireContext(), if (selected) R.color.accent else R.color.inkSecondary
-                )
-            )
-            o.row.background = androidx.core.content.ContextCompat.getDrawable(
-                requireContext(), if (selected) R.drawable.bg_chip_on else R.drawable.bg_filter_row
-            )
+            o.view.text = if (selected) "$mark ${o.label}" else o.label
+            o.view.isSelected = selected
         }
     }
 

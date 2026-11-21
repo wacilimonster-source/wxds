@@ -135,7 +135,7 @@ class ThreadDetailActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWeb() {
-        // 仅服务文学帖的「论坛楼层视图」；图片帖已直进原生阅读器
+        // 论坛楼层视图：技术/贴图区帖子的默认打开方式（ThreadNav 直达），文学帖可从阅读器「论坛」按钮进入
         bind.web.settings.loadWithOverviewMode = true
         WebView.setWebContentsDebuggingEnabled(false)
         // 跟随应用日/夜主题，正文底色与界面一致

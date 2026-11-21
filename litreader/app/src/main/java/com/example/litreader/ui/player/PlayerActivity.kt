@@ -59,6 +59,8 @@ class PlayerActivity : AppCompatActivity() {
     private var startedOnce = false
     private var resumeMs = C.TIME_UNSET
     private var resumeHintShown = false
+    /** 播放中报错是否已自动重解过一次（k/t 签名短时效，重解拿新令牌；每次起播重置）。 */
+    private var autoRetried = false
 
     private val repo by lazy { BookRepository((application as App).database) }
     private val posPrefs by lazy { getSharedPreferences("reader_pos", MODE_PRIVATE) }
@@ -227,6 +229,7 @@ class PlayerActivity : AppCompatActivity() {
             when (state) {
                 Player.STATE_READY -> {
                     hideStates()
+                    autoRetried = false
                     if (!startedOnce) {
                         startedOnce = true
                         markThreadOpened()
@@ -239,6 +242,13 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            // 播放期 403/超时多为签名令牌过期或网络抖动：自动用新参数重解一次再报错
+            if (!autoRetried) {
+                autoRetried = true
+                showLoading()
+                resolvePart(currentPart, needVideos = videos.isEmpty())
+                return
+            }
             showError(NetError.friendly(error))
         }
     }

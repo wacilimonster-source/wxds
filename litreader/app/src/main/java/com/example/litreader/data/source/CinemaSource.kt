@@ -146,7 +146,12 @@ class CinemaSource : T66yBaseSource(), VideoSource {
             }
         }
         if (body.isEmpty()) throw lastErr ?: IllegalStateException("未取到视频地址")
-        val json = JSONObject(body)
+        // 劫持机可能返回 200 + HTML：JSON 解析失败时给出可理解的中文，而不是英文解析报错
+        val json = try {
+            JSONObject(body)
+        } catch (e: Exception) {
+            throw IllegalStateException("视频服务返回异常（可能被网络劫持），请重试或更换网络")
+        }
         if (json.optInt("error", -1) != 0) throw IllegalStateException(json.optString("message", "接口返回异常"))
         var videoUrl = json.optJSONObject("content")?.optString("video_url").orEmpty().trim()
         if (videoUrl.isEmpty()) throw IllegalStateException("未取到视频地址")

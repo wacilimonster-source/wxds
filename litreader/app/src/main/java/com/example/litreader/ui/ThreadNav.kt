@@ -5,16 +5,20 @@ import android.content.Intent
 import com.example.litreader.data.db.ThreadEntity
 import com.example.litreader.data.source.SourceRegistry
 import com.example.litreader.data.source.SourceStyle
+import com.example.litreader.ui.detail.ThreadDetailActivity
 import com.example.litreader.ui.player.PlayerActivity
 import com.example.litreader.ui.reader.ReaderActivity
 
-/** 帖子入口统一导航：影院区直接进播放器，文学/贴图/技术进原生阅读器（内联图、点击进画廊、论坛模式齐备）。 */
+/**
+ * 帖子入口统一导航：影院→播放器；技术/贴图→论坛楼层视图（默认只看楼主，可切全部，
+ * 观感是「帖子」而不是播放器式沉浸翻页）；文学→原生阅读器。
+ */
 object ThreadNav {
     fun open(ctx: Context, t: ThreadEntity) {
-        val target = if (SourceRegistry.get(t.sourceId)?.style == SourceStyle.VIDEO) {
-            PlayerActivity::class.java
-        } else {
-            ReaderActivity::class.java
+        val target = when (SourceRegistry.get(t.sourceId)?.style) {
+            SourceStyle.VIDEO -> PlayerActivity::class.java
+            SourceStyle.POSTS, SourceStyle.IMAGE -> ThreadDetailActivity::class.java
+            else -> ReaderActivity::class.java
         }
         ctx.startActivity(Intent(ctx, target).apply {
             putExtra("tid", t.tid)

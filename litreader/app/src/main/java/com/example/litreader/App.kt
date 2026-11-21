@@ -12,6 +12,10 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // 媒体域名「上次解析成功 IP」落盘：DoH 全挂时的兜底（见 HttpClient dohDns）
+        com.example.litreader.data.remote.HttpClient.initDnsStore(
+            getSharedPreferences("media_dns", MODE_PRIVATE)
+        )
         setupCrashLog()
     }
 

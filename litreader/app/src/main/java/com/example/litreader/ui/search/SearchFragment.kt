@@ -179,14 +179,6 @@ class SearchFragment : Fragment() {
         bind.historyBar.visibility = View.GONE
     }
 
-    /** 底部页签进入恢复查询不弹键盘；列表入口 presetSource+focus 弹键盘。 */
-    fun presetSource(sourceId: String) {
-        if (vm.filter != sourceId) {
-            vm.applyFilter(sourceId)
-            if (::bind.isInitialized && bind.filterBar.visibility == View.VISIBLE) renderZoneChips()
-        }
-    }
-
     /** 区筛选 chips：全部 / 文学 / 贴图 / 影院 / 技术（统一胶囊规格，选择持久化）。 */
     private fun renderZoneChips() {
         val row = bind.zoneRow
@@ -334,16 +326,6 @@ class SearchFragment : Fragment() {
                 onAction = { vm.undoMark(t.tid, snap, v) }
             )
         }
-    }
-
-    /** 列表页放大镜入口切过来时聚焦输入框并弹键盘。 */
-    fun focusInput() {
-        bind.etSearch.requestFocus()
-        bind.etSearch.postDelayed({
-            if (!isAdded) return@postDelayed
-            val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-            imm.showSoftInput(bind.etSearch, InputMethodManager.SHOW_IMPLICIT)
-        }, 200)
     }
 
     /** 排序菜单：最新 / 最多点赞 / 最多回复，选择持久化并显示当前值。 */

@@ -36,15 +36,55 @@ object HttpClient {
     private val client by lazy { forumBuilder().build() }
 
     /**
-     * DoH 优先解析：部分网络对视频站群 CDN 域名做 DNS 污染（返回随机运营商 IP），
-     * App 连到假机后表现为「证书校验失败」或接口 403。阿里 DoH 实测可拿到真实 A 记录；
-     * DoH 失败（被墙/超时）时回退系统解析，退化为原有行为。结果缓存 5 分钟减少往返。
+     * DoH 多供应商解析（视频站群专用）：部分网络对这些域名做 DNS 污染
+     * （返回 Clash fake-ip 段 198.18/15、运营商劫持 IP 或 2001:2::/48 等假地址），
+     * 连假机表现为「证书校验失败」或 403。解析顺序：
+     * 1) DoH 供应商逐个尝试（阿里 223.5.5.5 / 223.6.6.6 / DNSPod 1.12.12.12，5s 超时，IP 字面量引导）
+     * 2) 全挂 → 上次成功解析的落盘 IP（媒体域名 IP 相对稳定）
+     * 3) 再不行 → 系统 DNS，结果同样过假 IP 过滤
+     * 所有结果先过滤非公网地址再使用，杜绝连上劫持机后拿到 403/假页面。
      */
-    /** DoH 缓存项（匿名对象内不能声明类，放外层）。 */
+    /** 解析结果缓存项（匿名对象内不能声明类，放外层）。 */
     private class DohEntry(val addrs: List<InetAddress>, val expireAt: Long)
 
+    /** DoH JSON API（国内公共 DNS，IP 直连引导；均实测可用）。 */
+    private val dohProviders = listOf(
+        "https://223.5.5.5/resolve?name=%s&type=1",
+        "https://223.6.6.6/resolve?name=%s&type=1",
+        "https://1.12.12.12/dns-query?name=%s&type=1"
+    )
+
+    /** 记忆可用 IP 的落盘（App 启动注入），进程内副本先行。 */
+    @Volatile
+    private var dnsStore: android.content.SharedPreferences? = null
+    private val lastGoodInMem = ConcurrentHashMap<String, List<InetAddress>>()
+
+    /** App.onCreate 注入：DoH 全挂时用「上次解析成功」的 IP 兜底。 */
+    fun initDnsStore(prefs: android.content.SharedPreferences) {
+        dnsStore = prefs
+    }
+
+    /** 非公网/劫持地址过滤：环回、内网、链路本地、组播、CGNAT、Clash fake-ip、基准测试段一律拒收。 */
+    private fun trustworthy(addr: InetAddress): Boolean {
+        if (addr.isLoopbackAddress || addr.isAnyLocalAddress || addr.isLinkLocalAddress ||
+            addr.isSiteLocalAddress || addr.isMulticastAddress
+        ) return false
+        val h = addr.hostAddress ?: return false
+        if (h.contains(":")) return !h.startsWith("2001:2:")  // 2001:2::/48 假地址（本机实测出现过）
+        val o = h.split('.').map { it.toIntOrNull() ?: -1 }
+        if (o.size != 4) return true
+        val (a, b, c) = o
+        return when {
+            a == 0 || a == 10 || a == 127 -> false                    // 0/8、10/8、环回
+            a == 100 && b in 64..127 -> false                         // CGNAT 100.64/10
+            a == 192 && b == 0 && c == 0 -> false                     // 192.0.0.0/24
+            a == 198 && (b == 18 || b == 19) -> false                 // 198.18/15 fake-ip
+            else -> true
+        }
+    }
+
     private val dohDns = object : Dns {
-        // DoH 引导客户端不设业务代理：223.5.5.5 国内直连可达，且要避免代理侧污染干扰
+        // DoH 引导客户端不设业务代理：国内公共 DNS 直连可达，且要避免代理侧污染干扰
         private val http = baseBuilder()
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(5, TimeUnit.SECONDS)
@@ -52,38 +92,75 @@ object HttpClient {
 
         private val cache = ConcurrentHashMap<String, DohEntry>()
         private val ttlMs = 5 * 60 * 1000L
+        private val fallbackTtlMs = 60 * 1000L
 
         override fun lookup(hostname: String): List<InetAddress> {
             val now = System.currentTimeMillis()
             cache[hostname]?.takeIf { it.expireAt > now }?.let { return it.addrs }
             val viaDoh = runCatching { dohLookup(hostname) }.getOrNull().orEmpty()
             if (viaDoh.isNotEmpty()) {
+                remember(hostname, viaDoh)
                 cache[hostname] = DohEntry(viaDoh, now + ttlMs)
                 return viaDoh
             }
-            return Dns.SYSTEM.lookup(hostname)
+            // DoH 全挂：优先上次成功 IP（真实机），拼接系统 DNS 的过滤结果兜底；
+            // OkHttp 会按顺序尝试，前一个 IP 失效自动换下一个
+            val resolved = (recall(hostname) + systemLookup(hostname)).distinct()
+            if (resolved.isNotEmpty()) {
+                cache[hostname] = DohEntry(resolved, now + fallbackTtlMs)
+                return resolved
+            }
+            // 全部不可信：抛 UnknownHost（界面译为「网络不可用」），绝不连劫持机拿 403
+            throw java.net.UnknownHostException(hostname)
         }
 
+        private fun systemLookup(hostname: String): List<InetAddress> =
+            runCatching { Dns.SYSTEM.lookup(hostname) }.getOrDefault(emptyList())
+                .filter(::trustworthy)
+
+        /** 供应商逐个尝试，返回第一个给出可信公网 IP 的结果。 */
         private fun dohLookup(hostname: String): List<InetAddress> {
-            val req = Request.Builder()
-                .url("https://223.5.5.5/resolve?name=$hostname&type=1")
-                .header("Accept", "application/dns-json")
-                .build()
-            http.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) return emptyList()
-                val ans = JSONObject(resp.body?.string() ?: return emptyList())
-                    .optJSONArray("Answer") ?: return emptyList()
-                val ips = ArrayList<InetAddress>(ans.length())
-                for (i in 0 until ans.length()) {
-                    val o = ans.optJSONObject(i) ?: continue
-                    if (o.optInt("type") != 1) continue
-                    // IP 字面量在本地解析，不会再触发 DNS
-                    runCatching { InetAddress.getByName(o.optString("data")) }
-                        .getOrNull()?.let { ips.add(it) }
-                }
-                return ips
+            for (tpl in dohProviders) {
+                val ips = runCatching {
+                    val req = Request.Builder()
+                        .url(tpl.format(hostname))
+                        .header("Accept", "application/dns-json")
+                        .build()
+                    http.newCall(req).execute().use { resp ->
+                        if (!resp.isSuccessful) return@runCatching emptyList<InetAddress>()
+                        val ans = JSONObject(resp.body?.string() ?: return@runCatching emptyList<InetAddress>())
+                            .optJSONArray("Answer") ?: return@runCatching emptyList<InetAddress>()
+                        val ips = ArrayList<InetAddress>(ans.length())
+                        for (i in 0 until ans.length()) {
+                            val o = ans.optJSONObject(i) ?: continue
+                            if (o.optInt("type") != 1) continue
+                            // IP 字面量在本地解析，不会再触发 DNS
+                            runCatching { InetAddress.getByName(o.optString("data")) }
+                                .getOrNull()?.takeIf { trustworthy(it) }?.let { ips.add(it) }
+                        }
+                        ips
+                    }
+                }.getOrNull().orEmpty()
+                if (ips.isNotEmpty()) return ips
             }
+            return emptyList()
         }
+    }
+
+    private fun remember(host: String, ips: List<InetAddress>) {
+        lastGoodInMem[host] = ips
+        dnsStore?.edit()
+            ?.putString("ips_$host", ips.joinToString(",") { it.hostAddress.orEmpty() })
+            ?.apply()
+    }
+
+    private fun recall(host: String): List<InetAddress> {
+        lastGoodInMem[host]?.let { return it }
+        val stored = dnsStore?.getString("ips_$host", null)?.takeIf { it.isNotBlank() }
+            ?: return emptyList()
+        return stored.split(',').mapNotNull {
+            runCatching { InetAddress.getByName(it.trim()) }.getOrNull()
+        }.filter(::trustworthy).also { if (it.isNotEmpty()) lastGoodInMem[host] = it }
     }
 
     /** 视频站群抓取（播放器页/playerurl）：直连 + DoH + 严格证书校验，正常与被污染网络均可达真机。 */

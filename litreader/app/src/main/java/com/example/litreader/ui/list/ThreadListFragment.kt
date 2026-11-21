@@ -2,15 +2,12 @@ package com.example.litreader.ui.list
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Typeface
 import android.os.Bundle
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
-import android.widget.PopupMenu
-import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
@@ -31,11 +28,9 @@ import com.example.litreader.util.Haptics
 import com.example.litreader.util.ReadProgress
 import com.example.litreader.util.Skeleton
 import com.example.litreader.util.UiTips
-import com.example.litreader.util.UpdateManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 
 /** 文学/贴图共用的列表页，按 sourceId 区分数据源。固定顶栏，阅读状态收进筛选面板。 */
 class ThreadListFragment : Fragment() {
@@ -79,7 +74,6 @@ class ThreadListFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         source = SourceRegistry.get(sourceId) ?: SourceRegistry.first()
         lazyMode = arguments?.getBoolean(ARG_LAZY) ?: false
-        bind.tvTitle.text = source.name
 
         vm = ViewModelProvider(
             this,
@@ -93,7 +87,6 @@ class ThreadListFragment : Fragment() {
             { open(it) }, { onLongPress(it) },
             onFavorite = { onFavoriteToggle(it) },
             onDislike = { onDislikeToggle(it) },
-            showThumb = source.style == SourceStyle.IMAGE,
             withFooter = true,
             onRetry = { vm.retryAppend() }
         )
@@ -124,10 +117,6 @@ class ThreadListFragment : Fragment() {
         bind.swipe.setOnRefreshListener { onManualRefresh() }
         bind.tvPage.setOnClickListener { showJumpSheet() }
         bind.tvPage.contentDescription = getString(R.string.jump_sheet_title)
-        bind.btnSearch.setOnClickListener {
-            (requireActivity() as? com.example.litreader.ui.main.MainActivity)?.openSearch(source.id, focus = true)
-        }
-        bind.btnMore.setOnClickListener { showMoreMenu(bind.btnMore) }
         bind.btnFilter.setOnClickListener {
             FilterSheet.newInstance(vm.readFilter) { applied ->
                 vm.applyReadFilter(applied)
@@ -425,43 +414,6 @@ class ThreadListFragment : Fragment() {
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
-    private fun showMoreMenu(anchor: View) {
-        val popup = PopupMenu(requireContext(), anchor, Gravity.END)
-        popup.menu.add(0, MENU_VERSION, 0, getString(R.string.current_version, com.example.litreader.util.Constants.VERSION_NAME))
-            .isEnabled = false
-        popup.menu.add(0, MENU_REFRESH, 1, getString(R.string.refresh))
-        val blocked = vm.blockedCount()
-        popup.menu.add(0, MENU_KEYWORDS, 2,
-            if (blocked > 0) getString(R.string.keyword_block_n, blocked) else getString(R.string.keyword_block)
-        )
-        popup.menu.add(0, MENU_CHECK_UPDATE, 3, getString(R.string.check_update))
-        popup.menu.add(0, MENU_CRASH_LOGS, 4, getString(R.string.crash_logs))
-        popup.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                MENU_REFRESH -> {
-                    onManualRefresh()
-                    true
-                }
-                MENU_KEYWORDS -> {
-                    KeywordSheet.newInstance(sourceId) {
-                        vm.refilter()
-                    }.show(parentFragmentManager, "keywords")
-                    true
-                }
-                MENU_CHECK_UPDATE -> {
-                    UpdateManager.checkAndPromptUpdate(requireActivity(), lifecycleScope, silent = false)
-                    true
-                }
-                MENU_CRASH_LOGS -> {
-                    showCrashLogs()
-                    true
-                }
-                else -> false
-            }
-        }
-        popup.show()
-    }
-
     /** 不喜欢按钮：状态翻转 + 可撤销（快照恢复标记前收藏态）。 */
     private fun onDislikeToggle(t: ThreadEntity) {
         val target = !t.dislike
@@ -486,50 +438,6 @@ class ThreadListFragment : Fragment() {
         vm.setFavorite(t, target) { snap, v ->
             undoSnack(t.tid, snap, v, getString(if (target) R.string.fav_added else R.string.fav_removed))
         }
-    }
-
-    /** 本地崩溃日志列表（App 未捕获异常落盘，最多 5 份）。 */
-    private fun showCrashLogs() {
-        val files = requireContext().getExternalFilesDir("crash")
-            ?.listFiles()?.sortedByDescending { it.name }.orEmpty()
-        if (files.isEmpty()) {
-            UiTips.snack(bind.root, getString(R.string.crash_logs_empty))
-            return
-        }
-        androidx.appcompat.app.AlertDialog.Builder(requireContext())
-            .setTitle(R.string.crash_logs)
-            .setItems(files.map { it.name }.toTypedArray()) { _, which -> showCrashContent(files[which]) }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
-    }
-
-    private fun showCrashContent(file: File) {
-        val content = runCatching { file.readText() }.getOrDefault("读取失败")
-        val pad = (16 * resources.displayMetrics.density).toInt()
-        val scroll = ScrollView(requireContext())
-        val tv = TextView(requireContext()).apply {
-            text = content
-            textSize = 10f
-            typeface = Typeface.MONOSPACE
-            setPadding(pad, pad, pad, pad)
-        }
-        scroll.addView(tv)
-        androidx.appcompat.app.AlertDialog.Builder(requireContext())
-            .setTitle(file.name)
-            .setView(scroll)
-            .setPositiveButton(R.string.share_image) { _, _ ->
-                startActivity(
-                    android.content.Intent.createChooser(
-                        android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(android.content.Intent.EXTRA_TEXT, content)
-                        },
-                        getString(R.string.share_image)
-                    )
-                )
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
     }
 
     /** 页码=最后成功加载的页；文学标「本地目录页」，贴图标「站点页」；总页数未知禁用跳页。 */
@@ -618,11 +526,6 @@ class ThreadListFragment : Fragment() {
     companion object {
         private const val ARG_SOURCE = "sourceId"
         private const val ARG_LAZY = "lazy"
-        private const val MENU_VERSION = 1
-        private const val MENU_REFRESH = 2
-        private const val MENU_CHECK_UPDATE = 3
-        private const val MENU_CRASH_LOGS = 4
-        private const val MENU_KEYWORDS = 5
         fun newInstance(sourceId: String, lazy: Boolean = false) = ThreadListFragment().apply {
             arguments = Bundle().apply {
                 putString(ARG_SOURCE, sourceId)
