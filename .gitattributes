@@ -1,0 +1,6 @@
+# 统一行尾：shell/脚本必须 LF（Linux CI 上 CRLF 会让 sh 报语法错），bat 保持 CRLF
+* text=auto
+gradlew text eol=lf
+*.sh text eol=lf
+gradlew.bat text eol=crlf
+*.bat text eol=crlf
