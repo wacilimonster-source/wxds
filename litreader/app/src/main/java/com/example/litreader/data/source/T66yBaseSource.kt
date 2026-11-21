@@ -28,11 +28,30 @@ abstract class T66yBaseSource : BookSource {
             val url = "$base/thread0806.php?fid=$fid&page=$page$cat"
             val doc = Jsoup.parse(ByteArrayInputStream(HttpClient.fetch(url)), null, base)
             val items = ArrayList<ThreadItem>()
-            for (tr in doc.select("#ajaxtable tr.tr3")) {
+            for (tr in catalogRows(doc)) {
                 parseRow(tr, category)?.let { items.add(it) }
             }
             CatalogPage(items, parseTotalPages(doc))
         }
+
+    /**
+     * 目录行：站点把置顶/公告/广告帖放在「普通主題」分隔行之前，它们不是正常内容
+     * （影院区首条常年是引流广告，点开必然无视频）。有分隔行时只取其后，
+     * 没有分隔行的版块保持原样（全部收集）。
+     * 置顶区与普通区可能分属不同 tbody，故按文档顺序切分，不用兄弟节点。
+     */
+    private fun catalogRows(doc: org.jsoup.nodes.Document): List<Element> {
+        // Elements 自带 filter(NodeFilter) 成员，显式声明为 List 以使用集合扩展
+        val all: List<Element> = doc.select("#ajaxtable tr")
+        val sepIdx = all.indexOfFirst {
+            it.hasClass("tr2") && (it.text().contains("普通主題") || it.text().contains("普通主题"))
+        }
+        return if (sepIdx >= 0) {
+            all.drop(sepIdx + 1).filter { it.hasClass("tr3") }
+        } else {
+            all.filter { it.hasClass("tr3") }
+        }
+    }
 
     /** 页脚 "1/68" 输入框或 id=last 末页链接解析总页数。 */
     private fun parseTotalPages(doc: org.jsoup.nodes.Document): Int {
