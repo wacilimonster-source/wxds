@@ -96,13 +96,18 @@ class CinemaSource : T66yBaseSource(), VideoSource {
             throw IllegalStateException("视频页参数缺失")
         }
 
-        // 1) 播放器页脚本里现取 CDN 基址与参数（基址可能调整，不能写死）
+        // 1) 播放器页脚本里现取 CDN 基址与参数（基址可能调整，不能写死）。
+        // 播放器页域名同样可能被污染/证书不匹配：严格(DoH)失败后降级忽略证书再试
         var cdn = FALLBACK_CDN
         var id = link.id
         var time = link.time
         var sign = link.sign
         runCatching {
-            val page = HttpClient.fetchText(link.pageUrl, referer = base)
+            val page = runCatching {
+                HttpClient.fetchText(link.pageUrl, referer = base, tls = HttpClient.Tls.MEDIA_STRICT)
+            }.recoverCatching {
+                HttpClient.fetchText(link.pageUrl, referer = base, tls = HttpClient.Tls.MEDIA_RELAXED)
+            }.getOrThrow()
             Regex("""requestVideoUrl\(\s*"((?:[^"\\]|\\.)+)"""").find(page)?.let { m ->
                 cdn = m.groupValues[1].replace("\\/", "/").replace("\\", "")
             }
@@ -115,24 +120,40 @@ class CinemaSource : T66yBaseSource(), VideoSource {
         } // 页面抓取失败不致命：参数从 iframe URL 兜底，基址用站群公共值
 
         // 2) playerurl API：JSON {error:0, content:{video_url}}
-        // 该 CDN 域名在部分网络/代理下会被劫持（证书不符），重试一次避开偶发抖动
+        // 该域名族在部分网络下被 DNS 污染（假机→证书不符/403）。MEDIA_STRICT 带 DoH 可直连
+        // 真机（证书实测有效）；仍失败按 忽略证书 → 明文HTTP 逐级降级，JSON 结构强校验兜住假响应。
         val api = "$cdn/videos/playerurl?id=$id&t=$time&h=$sign"
         var body = ""
+        var viaHttp = false
         var lastErr: Exception? = null
-        for (attempt in 0 until 2) {
+        for (mode in 0 until 4) {
+            val http = mode == 3
+            val url = if (http) api.replaceFirst("https://", "http://") else api
+            val tls = when {
+                mode <= 1 -> HttpClient.Tls.MEDIA_STRICT
+                else -> HttpClient.Tls.MEDIA_RELAXED
+            }
             try {
-                body = HttpClient.fetchText(api, referer = "https://${link.host}/")
+                body = HttpClient.fetchText(url, referer = "https://${link.host}/", tls = tls)
+                viaHttp = http
+                if (mode > 0) android.util.Log.w(
+                    "CinemaSource", "playerurl 第 ${mode + 1} 次尝试成功（降级 http=$http）"
+                )
                 break
             } catch (e: Exception) {
                 lastErr = e
-                if (attempt == 0) Thread.sleep(600)
+                if (mode == 0) Thread.sleep(600) // 严格通道的第二次尝试前避开偶发抖动
             }
         }
         if (body.isEmpty()) throw lastErr ?: IllegalStateException("未取到视频地址")
         val json = JSONObject(body)
         if (json.optInt("error", -1) != 0) throw IllegalStateException(json.optString("message", "接口返回异常"))
-        val videoUrl = json.optJSONObject("content")?.optString("video_url").orEmpty().trim()
+        var videoUrl = json.optJSONObject("content")?.optString("video_url").orEmpty().trim()
         if (videoUrl.isEmpty()) throw IllegalStateException("未取到视频地址")
+        // API 只能走明文 HTTP 时，说明该域名族的 TLS 在当前网络被阻断：直链一并转 http 提高起播率
+        if (viaHttp && videoUrl.startsWith("https://")) {
+            videoUrl = "http://" + videoUrl.removePrefix("https://")
+        }
         videoUrl
     }
 }

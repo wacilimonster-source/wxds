@@ -155,8 +155,10 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun ensurePlayer() {
         if (player != null) return
-        // 数据源复用项目 OkHttp：UA 一致、支持代理；Referer 在 attach 时按当前视频页补齐
-        val ds = OkHttpDataSource.Factory(HttpClient.okHttp()).apply {
+        // 数据源用媒体客户端：DoH 解析绕开 CDN 域名污染 + 忽略证书校验兜底，
+        // 第三方 CDN 证书不匹配/被劫持时仍可取流（分段与 AES key 无凭据）；
+        // UA 一致，Referer 在 attach 时按当前视频页补齐
+        val ds = OkHttpDataSource.Factory(HttpClient.mediaOkHttp()).apply {
             setUserAgent(HttpClient.userAgent())
         }
         dsFactory = ds
@@ -237,7 +239,7 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            showError(NetError.friendly(error.cause ?: error))
+            showError(NetError.friendly(error))
         }
     }
 
